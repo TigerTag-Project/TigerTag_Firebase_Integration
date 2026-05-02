@@ -151,11 +151,6 @@ Brand-specific fields:
 
 ### ⚠️ Sensitive fields — third-party clients
 
-The following fields contain secrets that grant **direct LAN control** of the
-user's 3D printer. A client that exposes them (logs, attributes, network
-traces) puts the user's printer at risk of remote takeover by anyone on the
-local network.
-
 | Brand | Sensitive fields |
 |-------|------------------|
 | bambulab | `password`, `serialNumber` |
@@ -164,21 +159,80 @@ local network.
 | flashforge | `password`, `serialNumber` |
 | snapmaker | _(none)_ |
 
-**Rules for third-party clients (Home Assistant, scripts, etc.):**
+#### Why these fields are dangerous
 
-- ✅ **OK** to read these fields if the user is opted in and you connect to
-  their printer on their behalf.
-- ❌ **Never** include them in entity attributes, log lines, error messages,
-  or status pages.
-- ❌ **Never** transmit them outside the user's local network.
-- ❌ **Never** persist them in plaintext in HA YAML / config files —
-  use the integration's encrypted config entry storage.
-- ❌ **Never** read them on a friend's account (the rules forbid it anyway —
-  `printers` is owner-only — but be defensive).
+These are **not** Firebase tokens — they are the equivalent of a Wi-Fi
+password for the printer itself. Anyone holding a `password` + `broker`/`ip`
+pair can, on the user's LAN:
 
-If your integration only needs to **list** the printers (e.g. show "User
-has 3 printers" in a dashboard), read just `printerName`, `printerModelId`,
-`isActive`, `updatedAt` and ignore the rest.
+- Connect directly to the printer's MQTT / WebSocket / HTTP control endpoint
+- Start, pause, or cancel a print
+- Change bed / nozzle temperature
+- Send arbitrary G-code (which can physically damage the machine)
+
+The Firebase auth + Firestore Rules protect the **data at rest**. Nothing
+protects the data **once your client has read it** — it's your job to keep
+it inside your process and never leak it.
+
+#### The classic trap
+
+A common mistake when wiring up a Home Assistant entity:
+
+```python
+class PrinterSensor(SensorEntity):
+    @property
+    def extra_state_attributes(self):
+        return self._raw_doc        # ← BOOM
+```
+
+Now every Firestore field is exposed on the entity, including the password.
+That data automatically flows into:
+
+- The **HA frontend** — anyone with dashboard access sees it
+- The **HA logs** — frequently shared on forums when debugging
+- The **HA REST API** — any add-on or external app reads it
+- **Backups** — uploaded to Nabu Casa / cloud / external drives
+- **Automation templates / notifications** — can leak via Telegram, email, etc.
+
+A user who pastes a debug log on a forum, or a stolen backup, instantly
+exposes the printer-control credentials to anyone on the same network.
+
+#### Rules for third-party clients
+
+- ✅ **READ these fields** if and only if you actually need to connect to
+  the printer on the user's behalf.
+- ✅ **Hold them in process memory** for the lifetime of the connection,
+  then discard.
+- ❌ **NEVER include them in entity attributes**, sensor states, log lines,
+  error messages, status dashboards, or any value the user can `print()`.
+- ❌ **NEVER transmit them outside the user's local network** — not to your
+  cloud, not in telemetry, not in automatic bug reports. If you ship metrics
+  or crash dumps, redact these keys before sending.
+- ❌ **NEVER store them in plaintext config files** — for HA specifically,
+  this means **don't** drop them in `configuration.yaml`. Always use a
+  `ConfigEntry` (`hass.config_entries.async_update_entry(...)`), which is
+  written to `.storage/core.config_entries` and encrypted at rest on HA OS.
+- ❌ **NEVER read them on a friend's account.** The rules make this
+  impossible (`printers` is owner-only) but be defensive — log a clear
+  error rather than blindly retrying.
+
+#### If you only need to LIST printers
+
+For a dashboard that just shows *"User has 3 printers: Atelier X1C, Salon
+K2, Garage AD5M"*, **you don't need any sensitive field**. Project to a
+safe subset before processing:
+
+```python
+SAFE_FIELDS = {"id", "printerName", "printerModelId", "isActive", "updatedAt", "sortIndex"}
+
+def list_printers_safely(brand_collection):
+    safe = []
+    for doc in brand_collection:
+        safe.append({k: v for k, v in doc.items() if k in SAFE_FIELDS})
+    return safe
+```
+
+If the secrets never enter your client's address space, they can't leak.
 
 ### `racks.{rackId}.lockedSlots`
 Stored as `["0:0", "0:1", "1:5", …]` strings (`"<level>:<position>"`).
