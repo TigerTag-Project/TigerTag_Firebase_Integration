@@ -273,12 +273,12 @@ to a known-good version.
 Pin in your client:
 
 ```bash
-git submodule add https://github.com/TigerTag-Project/TigerTag-Firebase-Integration.git
-cd TigerTag-Firebase-Integration && git checkout v0.1.0
+git submodule add https://github.com/TigerTag-Project/TigerTag_Firebase_Integration.git
+cd TigerTag_Firebase_Integration && git checkout v0.1.0
 ```
 
 or just reference a tag in your CI:
 
 ```bash
-curl -L https://raw.githubusercontent.com/TigerTag-Project/TigerTag-Firebase-Integration/v0.1.0/docs/03-data-model.md
+curl -L https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Firebase_Integration/v0.1.0/docs/03-data-model.md
 ```
