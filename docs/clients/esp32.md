@@ -603,3 +603,9 @@ which handles twin propagation server-side and skips Firebase auth — but
 requires a separate API key and is RFID-UID based only (no rich metadata).
 
 When reading, check both `integerValue` and `doubleValue` since the field type depends on what was written previously.
+
+---
+
+**Verified against:** Tiger Studio Manager v1.4.3 · TigerTag mobile (Flutter) latest · Firestore Rules deployed 2026-05-02
+**Contract version:** [v0.1.0](https://github.com/TigerTag-Project/TigerTag-Firebase-Integration/blob/main/CHANGELOG.md)
+**Drift?** Open an issue: https://github.com/TigerTag-Project/TigerTag-Firebase-Integration/issues

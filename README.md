@@ -1,8 +1,15 @@
 # TigerTag — Firebase Integration Guide
 
-> Public reference for third-party clients (mobile apps, Home Assistant,
-> ESP32 firmware, custom scripts) that want to read or update a user's
-> filament inventory through the TigerTag Firebase backend.
+> **🎯 Source of truth for any third-party integration.** If your client
+> talks to the TigerTag Firebase backend (Home Assistant, OctoPrint,
+> Spoolman bridge, ESP32 firmware, custom script), **this repo is the
+> reference you build against**. Anything that contradicts what's here
+> (random forum posts, screenshots, leaked source) is wrong by definition —
+> open an issue and we'll fix the doc.
+>
+> What's documented = what's deployed. We commit to keeping them in sync,
+> with a public [`CHANGELOG.md`](CHANGELOG.md) tracking every schema /
+> rule / API change.
 
 This repository is **read-only documentation + reference examples**. The
 actual TigerTag apps live in their own repos:
@@ -10,6 +17,10 @@ actual TigerTag apps live in their own repos:
 - **Tiger Studio Manager** (Electron desktop) — https://github.com/TigerTag-Project/TigerTag_Studio_Manager
 - **TigerTag mobile** (Flutter) — _private_
 - **TigerTag backend** (Firestore + Cloud Functions) — _private_
+
+If you're building something on top of TigerTag and you find a behaviour
+that disagrees with this documentation, **the documentation wins** — it
+means we shipped a regression. Please file an issue.
 
 ---
 
@@ -77,6 +88,84 @@ actual TigerTag apps live in their own repos:
 Rules in `rules/firestore.rules` mirror what's deployed on the TigerTag
 Firebase project. The single source of truth is the live deployment — this
 file is a snapshot for review and PRs.
+
+---
+
+## Stability guarantees for third-party integrations
+
+We treat this repo as a **public contract**. Concretely:
+
+### What WILL NOT change without notice (stable surface)
+
+- **Document paths.** `users/{uid}/inventory/{spoolId}`,
+  `users/{uid}/racks/{rackId}`, `users/{uid}/friends/{friendUid}` etc.
+- **Field names** of every documented field in
+  [`docs/03-data-model.md`](docs/03-data-model.md). Adding new fields is
+  always allowed; renaming or removing existing ones requires a deprecation
+  cycle (≥ 3 months notice in the CHANGELOG).
+- **Field semantics.** `weight_available` will always be net grams,
+  `last_update` will always be Unix milliseconds, `deleted: true` will
+  always mean "soft-deleted, hide from UI", etc.
+- **Friend access model.** The `users/{me}/friends/{them}` doc-existence
+  pattern that grants read access on inventory + racks won't be replaced
+  by a different mechanism without a migration path.
+- **Authentication endpoints.** `identitytoolkit.googleapis.com` and
+  `securetoken.googleapis.com` are Google's URLs — they're as stable as
+  Firebase Auth itself.
+- **`apiKey` and `projectId`** in the public init.json. They only change
+  if we migrate the entire Firebase project (announced ≥ 6 months in
+  advance via the CHANGELOG).
+
+### What MAY change (be defensive)
+
+- **Lookup table contents.** `id_brand.json`, `id_material.json`, etc.
+  gain new entries as TigerTag adds support for more filaments. Numeric
+  IDs are append-only; never reused for a different brand/material.
+- **Cloud Functions HTTPS endpoints** at `cdn.tigertag.io/*`
+  (e.g. `setSpoolWeightByRfid`). These are convenience wrappers; their
+  request/response shapes can evolve. Pin a version-tagged release if
+  you need lock-in.
+- **App Check requirements.** Today, App Check is OFF. We may flip to
+  Enforce in the future (announced ≥ 1 month in advance with a debug-token
+  process for legitimate third-party clients).
+- **New collections / new sub-fields.** Always additive — if you ignore
+  unknown fields, you stay forward-compatible.
+
+### The CHANGELOG
+
+Every release that affects third-party clients gets an entry in
+[`CHANGELOG.md`](CHANGELOG.md), categorised as:
+
+- **Added** — new collections, new fields, new endpoints
+- **Changed** — backwards-compatible tweaks (e.g. clarified semantics)
+- **Deprecated** — fields/paths scheduled for removal, with a target date
+- **Removed** — the field is gone (only after a deprecation cycle)
+- **Fixed** — bug or doc errata
+- **Security** — Firestore Rules updates
+
+Follow this repo's releases on GitHub to get notified.
+
+---
+
+## Source of truth — how it stays accurate
+
+The TigerTag team commits to:
+
+1. **Update this repo on every breaking change** to Firestore data model,
+   Security Rules, or auth flow — same PR, same release. Internal code
+   changes that affect external clients are *not* merged until this repo
+   is updated.
+2. **Mirror `rules/firestore.rules`** to whatever is actually deployed.
+   The public copy is regenerated from the deployed file (currently
+   manually; a CI job to enforce parity is on the roadmap — see
+   [CONTRIBUTING.md](CONTRIBUTING.md)).
+3. **Verify each release** of Tiger Studio Manager and the mobile app
+   against the docs before tagging. The footer of every doc indicates
+   the latest verified version.
+
+If you spot drift — a field that exists in production but isn't here, a
+behaviour that doesn't match — please open an issue. We treat doc bugs
+with the same priority as code bugs.
 
 ---
 
