@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 🔎 Health Check Firestore (utilisé par /healthz?deep=1)      ║
+    // ║ 🔎 Firestore health check (used by /healthz?deep=1)          ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /_healthz_probe/{docId} {
       allow read: if true;
@@ -11,9 +11,9 @@ service cloud.firestore {
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 🌐 Profils publics — lisibles par tous les users connectés   ║
-    // ║ Contient : publicKey, displayName, isPublic, color_r/g/b    ║
-    // ║ NE contient PAS : privateKey, email, inventory              ║
+    // ║ 🌐 Public profiles — readable by any authenticated user      ║
+    // ║ Contains : publicKey, displayName, isPublic, color_r/g/b     ║
+    // ║ Does NOT contain : privateKey, email, inventory              ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /userProfiles/{uid} {
       allow read:  if request.auth != null;
@@ -21,13 +21,13 @@ service cloud.firestore {
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 🔑 Index des codes publics  publicKeys/{key} → { uid }       ║
-    // ║ Lookup O(1) par ID — garantit l'unicité des codes XXX-XXX   ║
+    // ║ 🔑 Public-key index  publicKeys/{key} → { uid }              ║
+    // ║ O(1) lookup by doc id — guarantees XXX-XXX code uniqueness   ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /publicKeys/{key} {
-      // Tout user connecté peut vérifier si un code existe (lookup ami)
+      // Any signed-in user can resolve a code (used in friend lookup flow)
       allow read: if request.auth != null;
-      // Seul le propriétaire peut créer/supprimer son propre code
+      // Only the owner can claim / release their own code
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid;
       allow delete: if request.auth != null
@@ -35,7 +35,7 @@ service cloud.firestore {
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 👤 Profil utilisateur privé (1 document = 1 utilisateur)     ║
+    // ║ 👤 Private user document (1 doc = 1 user)                    ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /users/{userId} {
 
@@ -51,25 +51,24 @@ service cloud.firestore {
         allow read, write: if isOwner();
       }
 
-      // ── Imprimantes ───────────────────────────────────────────────
+      // ── Printers ──────────────────────────────────────────────────
       match /printers/{brand}/{document=**} {
         allow read, write: if isOwner();
       }
 
-      // ── Préférences ───────────────────────────────────────────────
+      // ── Preferences ───────────────────────────────────────────────
       match /prefs/{prefId} {
         allow read, write: if isOwner();
       }
 
-      // ── Inventaire ────────────────────────────────────────────────
-      // Lecture autorisée si :
-      //   1. Propriétaire
-      //   2. Inventaire public (isPublic = true dans userProfiles)
-      //   3. Ami accepté — la simple présence dans la liste d'amis suffit.
-      //      Pas de vérification de clé : la création de l'entrée
-      //      friends/{me} est déjà protégée par l'existence d'une
-      //      demande d'ami préalable (cf. règle plus bas), donc
-      //      impossible de s'auto-ajouter.
+      // ── Inventory ─────────────────────────────────────────────────
+      // Read allowed if:
+      //   1. Owner
+      //   2. Inventory is public (isPublic = true in userProfiles)
+      //   3. Accepted friend — mere presence in the friends list is enough.
+      //      No key check needed: creating the friends/{me} entry is already
+      //      gated by the prior existence of a friend request (see rule
+      //      below), so users can't self-add.
       match /inventory/{itemId} {
         allow write: if isOwner();
         allow read:  if isOwner()
@@ -80,23 +79,23 @@ service cloud.firestore {
           );
       }
 
-      // ── Demandes d'amis entrantes ─────────────────────────────────
-      // Bob peut créer SA demande chez Alice (sauf si blacklisté)
-      // Alice seule peut lire, mettre à jour (accepter/refuser), supprimer
+      // ── Incoming friend requests ──────────────────────────────────
+      // Bob can create HIS request on Alice's account (unless blacklisted).
+      // Alice alone can read, update (accept/refuse), or delete.
       match /friendRequests/{requesterId} {
         allow create: if request.auth != null
           && request.auth.uid == requesterId
           && !exists(/databases/$(database)/documents/users/$(userId)/blacklist/$(requesterId));
         allow read, update, delete: if isOwner();
-        // Bob peut supprimer sa propre demande (retrait)
+        // Bob can also delete his own pending request (cancel)
         allow delete: if request.auth != null && request.auth.uid == requesterId;
       }
 
-      // ── Amis acceptés ─────────────────────────────────────────────
-      // Alice gère sa liste — Bob peut lire SA propre entrée (pour récupérer sa clé)
-      // Acceptation ISO : l'accepteur peut écrire son entrée chez l'expéditeur
-      //   (request.auth.uid == friendId ET une demande de userId existe chez friendId)
-      // Suppression symétrique : un ami peut s'effacer lui-même de la liste
+      // ── Accepted friends ──────────────────────────────────────────
+      // Alice manages her list — Bob can read HIS own entry (to fetch his key)
+      // ISO acceptance: the acceptee can write his entry into the requester's list
+      //   (request.auth.uid == friendId AND a request from userId exists at friendId)
+      // Symmetric removal: a friend can remove themselves from the other's list.
       match /friends/{friendId} {
         allow read:  if isOwner()
           || (request.auth != null && request.auth.uid == friendId);
@@ -110,15 +109,15 @@ service cloud.firestore {
           && request.auth.uid == friendId;
       }
 
-      // ── Liste noire ───────────────────────────────────────────────
+      // ── Blacklist ─────────────────────────────────────────────────
       match /blacklist/{blockedId} {
         allow read, write: if isOwner();
       }
 
-      // ── Rangements (étagères de stockage) ─────────────────────────
-      // Lecture : même politique que l'inventaire — owner / public / amis.
-      // Écriture : owner uniquement.
-      // (Permet la vue Storage en mode ami / public, ISO avec inventory)
+      // ── Storage racks ─────────────────────────────────────────────
+      // Read: same policy as inventory — owner / public / friends.
+      // Write: owner only.
+      // (Enables the Storage view in friend / public mode, ISO with inventory)
       match /racks/{rackId} {
         allow write: if isOwner();
         allow read:  if isOwner()
@@ -129,16 +128,16 @@ service cloud.firestore {
           );
       }
 
-      // ── Balances (TigerScale heartbeats) ──────────────────────────
-      // Privé — la balance ESP32 s'authentifie comme le propriétaire et
-      // écrit son propre heartbeat. Aucun accès tiers.
+      // ── Scales (TigerScale heartbeats) ────────────────────────────
+      // Private — the ESP32 scale authenticates as the owner and writes
+      // its own heartbeat. No third-party access.
       match /scales/{mac} {
         allow read, write: if isOwner();
       }
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 📦 Index des médias                                         ║
+    // ║ 📦 Media indexes (admin / Cloud Functions only)              ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /mediaIndex/{folder} {
       allow read, write: if false;
