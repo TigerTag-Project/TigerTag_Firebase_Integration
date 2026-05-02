@@ -25,7 +25,8 @@ actual TigerTag apps live in their own repos:
 │   ├── 05-rate-limiting.md        ← polling intervals, App Check, quotas
 │   └── clients/
 │       ├── home-assistant.md      ← full HA component sketch (Python)
-│       ├── esp32.md               ← ESP32 / scale firmware integration
+│       ├── esp32.md               ← ESP32 / scale firmware (REST + Arduino sketch)
+│       ├── spoolman-bridge.md     ← Spoolman sync (TigerTag → Spoolman REST)
 │       └── python-cli.md          ← minimal Python REPL example
 ├── rules/
 │   └── firestore.rules            ← public copy of the deployed Security Rules
@@ -44,6 +45,7 @@ actual TigerTag apps live in their own repos:
 | Connect a Python script that reads YOUR own spools | [docs/clients/python-cli.md](docs/clients/python-cli.md) |
 | Build a Home Assistant integration (sensors per spool) | [docs/clients/home-assistant.md](docs/clients/home-assistant.md) |
 | Wire a custom NFC/scale device to update spool weight | [docs/clients/esp32.md](docs/clients/esp32.md) |
+| Sync TigerTag inventory to a Spoolman instance | [docs/clients/spoolman-bridge.md](docs/clients/spoolman-bridge.md) |
 | Understand WHY a `permission-denied` error happens | [docs/02-authentication.md](docs/02-authentication.md) |
 | See the live Firestore Security Rules | [rules/firestore.rules](rules/firestore.rules) |
 
