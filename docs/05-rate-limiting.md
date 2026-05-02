@@ -5,6 +5,24 @@ don't do rate limiting on their own. To prevent abuse (a script hammering
 the API, exfiltration attempts, runaway loops), combine the four layers
 below.
 
+> ## Current production status (as of v0.1.0)
+>
+> | Layer | Status |
+> |-------|--------|
+> | Layer 1 — Polling discipline (client recommendation) | ✅ Documented; clients are expected to follow |
+> | Layer 2 — `request.query.limit <= 200` guard in rules | ❌ **NOT yet deployed** — see roadmap below |
+> | Layer 3 — App Check enforcement on Firestore | ❌ **NOT yet enabled** — see roadmap below |
+> | Layer 4 — Cloud Logging + per-uid alerts | ❌ Not yet configured |
+>
+> **What this means for your client today:** the only enforcement is
+> "is the user authenticated and authorised by the rules?" There is no
+> per-request rate limit, no list-size cap, no App Check attestation.
+> Your client should still follow Layer 1 (polling discipline) — but
+> nothing on the server prevents abusive clients yet.
+>
+> The TigerTag team will announce Layer 2/3/4 rollouts in the
+> [CHANGELOG](../CHANGELOG.md) ahead of time.
+
 ## Layer 1 — Polling discipline (client-side)
 
 **Recommended polling interval: 5 minutes minimum.** Filament inventories
