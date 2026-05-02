@@ -49,7 +49,8 @@ caller. The actual access control is:
    in as a real user.
 2. **Firestore Security Rules** — the rules see `request.auth.uid` and
    decide what the user can read / write.
-3. **App Check** (optional) — cryptographic attestation that the request
-   comes from a legitimate app instance.
+3. **(App Check is NOT enforced** on this project — see
+   [`05-rate-limiting.md § Why we don't use Firebase App Check`](05-rate-limiting.md#why-we-dont-use-firebase-app-check)
+   for the rationale.)
 
 Without a valid `idToken`, the `apiKey` alone gives access to nothing.

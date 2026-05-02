@@ -33,7 +33,7 @@ means we shipped a regression. Please file an issue.
 │   ├── 02-authentication.md       ← email/password sign-in + token refresh
 │   ├── 03-data-model.md           ← Firestore collections reference
 │   ├── 04-friend-system.md        ← how friend access works (privateKey model)
-│   ├── 05-rate-limiting.md        ← polling intervals, App Check, quotas
+│   ├── 05-rate-limiting.md        ← polling intervals, query limits, monitoring
 │   └── clients/
 │       ├── home-assistant.md      ← full HA component sketch (Python)
 │       ├── esp32.md               ← ESP32 / scale firmware (REST + Arduino sketch)
@@ -71,9 +71,14 @@ means we shipped a regression. Please file an issue.
 3. **One key per user, one bond per friendship.** When two users become
    friends, a bidirectional Firestore doc is created; either can revoke at
    any time, immediately cutting access.
-4. **App Check encouraged.** Production deployments should attest their
-   origin via Firebase App Check (reCAPTCHA / DeviceCheck / Play Integrity)
-   to prevent generic abuse.
+4. **No App Check enforcement.** After evaluation, we decided not to
+   enforce Firebase App Check project-wide — it brings little value on
+   Electron / IoT / third-party clients and the integration overhead
+   doesn't justify the protection gained. Defense relies on Security
+   Rules + query-limit caps + Cloud Audit Logs instead. Clients shipping
+   App Check anyway (defense-in-depth) are tolerated; their tokens are
+   ignored. See [`docs/05-rate-limiting.md`](docs/05-rate-limiting.md)
+   for the full rationale.
 
 ---
 
@@ -125,9 +130,10 @@ We treat this repo as a **public contract**. Concretely:
   (e.g. `setSpoolWeightByRfid`). These are convenience wrappers; their
   request/response shapes can evolve. Pin a version-tagged release if
   you need lock-in.
-- **App Check requirements.** Today, App Check is OFF. We may flip to
-  Enforce in the future (announced ≥ 1 month in advance with a debug-token
-  process for legitimate third-party clients).
+- **App Check status.** App Check is OFF and we don't plan to enforce
+  it project-wide (rationale in `docs/05-rate-limiting.md`). If we ever
+  introduce it on a specific endpoint (e.g. public-inventory scraping
+  protection), we'll announce it ≥ 1 month in advance.
 - **New collections / new sub-fields.** Always additive — if you ignore
   unknown fields, you stay forward-compatible.
 

@@ -28,6 +28,56 @@ cycles in the wild.
 
 ---
 
+## [0.1.3] — 2026-05-02
+
+### Changed
+- **App Check is no longer part of the recommended security model.**
+  After evaluation, we decided not to enforce Firebase App Check
+  project-wide. Rationale (full version in `docs/05-rate-limiting.md`):
+  - On Electron (Tiger Studio Manager), App Check is theater — the
+    `apiKey` is bundled in the public binary anyway, and reCAPTCHA
+    Enterprise can't validate the `file://` origin used by Electron.
+  - On mobile, App Check has real value via Play Integrity / DeviceCheck,
+    but enforcing it project-wide would force every other client (Tiger
+    Studio, ESP32, third-party integrations) to also ship attestation,
+    which doesn't scale via debug tokens.
+  - For third-party clients (HA, OctoPrint, scripts), there's no
+    cryptographic attestation provider that works natively — we'd have
+    to manually issue and revoke debug tokens, admin-heavy and unfriendly.
+  - The actual abuse vector worth defending (scraping of public
+    inventories) is better addressed surgically with a Cloud Function
+    gate when/if it materialises, not by enforcing App Check globally.
+- `docs/05-rate-limiting.md` rewritten:
+  - Layer 3 (App Check) section removed from the recommended layers.
+  - New section "Why we don't use Firebase App Check" with the rationale
+    and the alternative we'd take for public-inventory scraping if needed.
+  - New section "Clients that ship App Check anyway (defense-in-depth)"
+    clarifying that App Check tokens sent by clients are silently ignored
+    — clients consciencieux are not penalised, and they're future-proof
+    if we ever flip a specific endpoint.
+- `README.md` core principles updated: App Check is no longer in the list
+  of recommended layers; defense relies on Security Rules + query-limit
+  caps + Cloud Audit Logs.
+
+### Removed
+- **All "you must include `X-Firebase-AppCheck`" instructions** from
+  third-party client docs. Clients that previously read v0.1.1 and
+  started preparing App Check integration: that work is now optional
+  defense-in-depth rather than required.
+
+### Added
+- **Cloud Audit Logs on Firestore Data Reads** is now active in
+  production. The `Firestore/Datastore API` service has the "Data Read"
+  audit type enabled in Cloud Console → IAM & Admin → Audit Logs. Every
+  `RunQuery`, `get`, and `list` event is logged with the authenticated
+  uid, target document/collection, full query parameters (including
+  `limit`), and source IP. The TigerTag team uses these logs to:
+  - Measure `.limit()` adoption ahead of the Layer 2 cutover (see v0.1.2).
+  - Detect anomalous patterns (single uid reading 10 000+ docs/h, etc.).
+  - Investigate user-reported issues by replaying the exact failed request.
+
+---
+
 ## [0.1.2] — 2026-05-02
 
 ### Changed

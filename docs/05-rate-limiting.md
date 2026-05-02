@@ -2,39 +2,36 @@
 
 Firestore Security Rules are **binary** — allow or deny per request. They
 don't do rate limiting on their own. To prevent abuse (a script hammering
-the API, exfiltration attempts, runaway loops), combine the four layers
+the API, exfiltration attempts, runaway loops), combine the three layers
 below.
 
-> ## Current production status — soft rollout in progress
+> ## Current production status
 >
 > | Layer | Target | Currently deployed |
 > |-------|--------|--------------------|
 > | Layer 1 — Polling discipline (client recommendation) | ✅ — | ✅ — |
 > | Layer 2 — `request.query.limit` guard in rules | `inventory ≤ 200`, `racks ≤ 50` | 🟡 **Permissive** — guards are NOT in the deployed rules; Cloud Audit Logs track `.limit()` usage to measure how many clients still need to migrate. |
-> | Layer 3 — App Check on Firestore | Enforce | 🟡 **Monitor mode** — App Check tokens are checked and logged but invalid/missing tokens are NOT blocked. The Firebase Console "App Check" tab shows the % of verified vs. unverified requests per client app. |
-> | Layer 4 — Cloud Logging + alerts | Active | ✅ Audit logs feed BigQuery; per-uid anomaly alerts and "would-be-blocked" counters are dashboarded. |
+> | Layer 3 — Cloud Logging + alerts | Active | ✅ Audit logs feed BigQuery; per-uid anomaly alerts and "would-be-blocked" counters are dashboarded. |
 >
 > ### What this means for your client today
 >
-> - **No request is currently rejected** for missing `.limit()` or
->   missing App Check token. Existing apps in the wild keep working.
+> - **No request is currently rejected** for missing `.limit()`. Existing
+>   apps in the wild keep working.
 > - **Build to the TARGET spec anyway** — when enforcement flips, your
 >   client should already comply. We give ≥ 1 month notice in the
->   [CHANGELOG](../CHANGELOG.md) before the flip; not adapting earlier
->   means scrambling at the deadline.
+>   [CHANGELOG](../CHANGELOG.md) before the flip.
 > - **Concretely**: always pass `.limit(N)` on list reads (≤ 200 for
->   inventory, ≤ 50 for racks); always include the `X-Firebase-AppCheck`
->   header (web → reCAPTCHA, mobile → DeviceCheck/Play Integrity,
->   third-party → request a debug token).
+>   inventory, ≤ 50 for racks).
 >
-> ### Why soft rollout instead of immediate Enforce?
+> ### Why soft rollout instead of immediate enforcement?
 >
 > Tens of users still run older Tiger Studio Manager / mobile app
-> versions that issue unbounded list reads or send no App Check token.
-> Hard-flipping to Enforce would brick those clients overnight. We
-> monitor real traffic for ~2 weeks, identify the laggard versions,
-> publish a forced-update cycle, then flip. The exact cutover date is
-> announced in the CHANGELOG.
+> versions that issue unbounded list reads. Hard-flipping to strict
+> rules would brick those clients overnight. We monitor real traffic
+> for ~2 weeks, identify the laggard versions, publish a forced-update
+> cycle, then flip. The exact cutover date is announced in the CHANGELOG.
+
+---
 
 ## Layer 1 — Polling discipline (client-side)
 
@@ -52,11 +49,13 @@ team pays for) and burns mobile battery on the friend's side.
 Document the polling interval in your client's settings. **Never** let
 users go below 30 seconds — Firestore will start throttling the project.
 
+---
+
 ## Layer 2 — Bounded list reads (Security Rules)
 
 Without a `limit()` clause, a malicious script can request
 `users/{uid}/inventory` and get every doc in one shot. Target rule shape
-(see `rules/firestore.rules` for full target file):
+(see `rules/firestore.rules` for the full target file):
 
 ```javascript
 match /users/{uid}/inventory/{spoolId} {
@@ -87,121 +86,108 @@ read in your client. When we flip the cutover (≥ 1 month notice in the
 
 200 docs is plenty for any real user (typical inventory: 30 spools).
 
-## Layer 3 — Firebase App Check (production-grade)
+---
 
-App Check cryptographically attests that a request comes from a legitimate
-**app instance**, not a script that scraped tokens.
+## Layer 3 — Monitoring & operational response
 
-### Status
+### Cloud Audit Logs on Firestore reads
 
-**Currently in Monitor mode** on Firestore (Firebase Console → Build →
-App Check → Firestore). Concretely:
+Cloud Audit Logs are **enabled** on the Firestore Data Read API. Every
+`get`, `list`, and `runQuery` event is recorded with:
 
-- App Check tokens sent by clients are validated and the verdict is
-  logged in the Firebase Console metrics page.
-- Requests **without** a token, or with an **invalid** token, are still
-  served — they're just flagged in metrics as "unverified".
-- The TigerTag team watches the verified/unverified ratio per client
-  (web, iOS, Android, third-party). When 100% of legitimate clients
-  reach "verified" for ~7 consecutive days, the toggle flips to
-  **Enforce** and unverified requests start receiving 401.
+- The authenticated user (uid)
+- The exact document or collection accessed
+- The full query parameters (`limit`, `where`, `orderBy`)
+- Timestamp and source IP
 
-### Heads-up for third-party integrators
+Logs end up in Cloud Logging and can be exported to BigQuery for
+analysis. We use them to:
 
-Build with App Check support **now**. When the cutover happens, the
-CHANGELOG will give ≥ 1 month notice. If your client doesn't ship a
-valid token by then, it stops working.
+- Measure `.limit()` adoption ahead of the Layer 2 cutover
+- Detect anomalous patterns (single uid reading 10 000+ docs/h)
+- Investigate user-reported issues (replay the exact failed request)
 
-For HA, ESP32, scripts → request a debug token from the TigerTag team
-(see "Third-party debug tokens" below). Embed it once, and your client
-will be verified during Monitor mode and pass after the Enforce flip.
+### Anomaly response
 
-### Per-platform attestation
+When Cloud Logging surfaces an abusive uid, the TigerTag team can:
 
-| Platform | Provider |
-|----------|----------|
-| Web (desktop app) | reCAPTCHA Enterprise (recommended) or v3 |
-| iOS | DeviceCheck or App Attest |
-| Android | Play Integrity API |
-| Server-side / scripts | **Service account** (only for Admin SDK — not applicable here) |
-| **Third-party clients (HA, ESP32)** | **Debug tokens** (see below) |
-
-### Third-party debug tokens
-
-For clients that can't sign cryptographic attestations natively (HA, ESP32,
-home-grown scripts), the TigerTag team can issue **debug tokens** via the
-Firebase Console:
-
-1. The integration developer requests a debug token (private GitHub issue
-   or email) and provides their use case.
-2. The team generates a token in Firebase Console → App Check → Manage
-   debug tokens, names it (e.g. "Home Assistant — alice@example.com").
-3. The token is embedded in the client config (env var, not hardcoded).
-4. The team can **revoke individual tokens** if they detect abuse.
-
-```python
-# HA / Python
-import os
-APP_CHECK_TOKEN = os.environ.get("TIGERTAG_APP_CHECK_TOKEN")
-
-headers = {
-    "Authorization":      f"Bearer {id_token}",
-    "X-Firebase-AppCheck": APP_CHECK_TOKEN,
-}
-```
-
-If App Check is enforced and the header is missing/invalid, Firestore
-returns 401 Unauthorized.
-
-## Layer 4 — Monitoring & blacklist (operational)
-
-### Cloud Logging on Firestore reads
-Enable Cloud Audit Logs for Firestore data reads. Logs end up in BigQuery
-or Cloud Logging.
-
-### Anomaly detection
-Set up an alert for any uid generating > N reads/hour. The TigerTag team
-can investigate and:
-
-- Revoke the user's tokens (force a new sign-in)
-- Add a server-side blacklist entry (Cloud Function intercept)
-- Raise per-uid quotas in App Check
+- Revoke the user's tokens (force a re-sign-in via Firebase Auth admin)
+- Add a server-side blacklist entry that the rules check against
+- Raise a budget alert if costs spike
 
 ### Budget alerts
-Set a Firebase budget alert at e.g. $50/month. If usage spikes (typically
-a runaway client), you'll know within hours.
 
-## Historical rollout plan (kept for reference)
+A Firebase budget alert at €50/month is active. If usage spikes (typically
+a runaway client), the team is notified within hours and can act before
+the bill grows.
 
-The four layers were rolled out in this order:
+---
 
-| Step | Risk at the time |
-|------|------------------|
-| 1. Polling discipline in client docs | none |
-| 2. Added `request.query.limit` caps in rules (inventory ≤ 200, racks ≤ 50) | breaks any client that listed unbounded — none in practice |
-| 3. Enabled App Check in Monitor mode | none, just observe |
-| 4. Whitelisted 3rd-party clients (debug tokens) | low |
-| 5. Flipped App Check to Enforce | medium — required all client apps to ship App Check init first |
-| 6. Added Cloud Logging anomaly alert | none |
+## Why we don't use Firebase App Check
 
-All steps are complete. New third-party integrations come in at step 4
-— request a debug token from the TigerTag team.
+App Check is the obvious-looking fourth layer (cryptographic attestation
+that a request comes from a legitimate app instance). After evaluation,
+**we decided not to enforce it** for TigerTag. Rationale:
+
+| Concern | Verdict |
+|---------|---------|
+| **Tiger Studio Manager (Electron)** | App Check on Electron is theater. The `apiKey` is bundled in the binary anyway; reCAPTCHA Enterprise needs an authorized domain that Electron's `file://` origin doesn't have; and an attacker can just download the public binary and run it as an "attested" client. Net protection: ~zero. |
+| **Mobile Flutter app** | App Check via Play Integrity / DeviceCheck would add real value, but only if we Enforce *project-wide* — and that requires every other client (Tiger Studio, ESP32, third-party tools) to ship App Check too. The cost-benefit doesn't justify forcing every integrator to deal with debug tokens. |
+| **Third-party integrators** (HA, OctoPrint, scripts) | They can't natively attest. We'd have to issue + manage debug tokens individually, which is admin-heavy and doesn't scale. |
+| **Public-inventory scraping** | The one scenario where App Check could help. We address this differently if/when it becomes a real problem (see below). |
+
+### What we do instead
+
+- **Firestore Security Rules** are the primary defense. The privateKey
+  is owner-only, friend access requires the bidirectional friend doc,
+  blacklist is enforced. Most attack scenarios are blocked at this layer.
+- **`query.limit` cap** (Layer 2 above) limits the blast radius of any
+  leaked auth token.
+- **Cloud Audit Logs** (Layer 3) detect anomalous patterns after the fact.
+- **Per-public-inventory mitigation** stays an option in reserve: if/when
+  Cloud Logs show actual scraping of `userProfiles[isPublic=true]`
+  inventories, we'd implement a **Cloud Function gate** specifically for
+  that endpoint (App Check + per-IP rate limit, surgical) rather than
+  enforce App Check project-wide.
+
+This decision will be revisited if traffic patterns change. The CHANGELOG
+will record any switch.
+
+### Clients that ship App Check anyway (defense-in-depth)
+
+You **can** still call `firebase.appCheck().activate(...)` in your
+client. Firestore will:
+
+- **Ignore** the `X-Firebase-AppCheck` header if it's absent — no impact
+- **Read but not act on** the header if it's present — request passes
+  normally regardless of the verdict
+
+So shipping App Check today is harmless and **future-proofs** your client:
+if TigerTag ever flips to Enforce on a specific endpoint (e.g. for
+public-inventory scraping protection), your client is already compliant
+with no code change.
+
+**The TigerTag team will give ≥ 1 month notice in the CHANGELOG before
+any cutover, so non-attested clients have time to add the integration.**
+
+---
 
 ## What about Firestore's built-in quotas?
 
 The free Spark plan includes 50K reads/day and 20K writes/day. The Blaze
 (pay-as-you-go) plan has no daily caps but charges per operation. Neither
-has a per-user rate limit out of the box — you have to build it yourself
-(or trust App Check + good client behaviour).
+has a per-user rate limit out of the box — you have to build it yourself.
 
 For a typical TigerTag user (30 spools, 5 friends polled every 5 min), a
 day's worth of reads is:
+
 ```
 288 polls/day × (1 own + 5 friends × 1 list) = 1,728 reads/day
 ```
-Even with 1,000 active users that's < 2M reads/day — well within Blaze
+
+Even with 1 000 active users that's < 2M reads/day — well within Blaze
 budget at ~$0.06 per 100K reads = $1/day for the whole user base.
 
-The risk is a runaway client polling at 1Hz × 100 spools × 1000 users =
-8.6M reads/day = $5/day from a single bad actor. App Check + the layer-2
-list cap make this nearly impossible.
+The risk is a runaway client polling at 1 Hz × 100 spools × 1 000 users =
+8.6M reads/day = $5/day from a single bad actor. The Layer 2 cap and
+Layer 3 monitoring catch this.
