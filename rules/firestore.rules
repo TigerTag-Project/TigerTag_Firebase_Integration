@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🔎 Health Check Firestore (utilisé par /healthz?deep=1)      ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /_healthz_probe/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🌐 Profils publics — lisibles par tous les users connectés   ║
+    // ║ Contient : publicKey, displayName, isPublic, color_r/g/b    ║
+    // ║ NE contient PAS : privateKey, email, inventory              ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /userProfiles/{uid} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🔑 Index des codes publics  publicKeys/{key} → { uid }       ║
+    // ║ Lookup O(1) par ID — garantit l'unicité des codes XXX-XXX   ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /publicKeys/{key} {
+      // Tout user connecté peut vérifier si un code existe (lookup ami)
+      allow read: if request.auth != null;
+      // Seul le propriétaire peut créer/supprimer son propre code
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 👤 Profil utilisateur privé (1 document = 1 utilisateur)     ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /users/{userId} {
+
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      allow create: if isOwner();
+      allow read, update, delete: if isOwner();
+
+      // ── API Keys ──────────────────────────────────────────────────
+      match /apiKeys/{docId} {
+        allow read, write: if isOwner();
+      }
+
+      // ── Imprimantes ───────────────────────────────────────────────
+      match /printers/{brand}/{document=**} {
+        allow read, write: if isOwner();
+      }
+
+      // ── Préférences ───────────────────────────────────────────────
+      match /prefs/{prefId} {
+        allow read, write: if isOwner();
+      }
+
+      // ── Inventaire ────────────────────────────────────────────────
+      // Lecture autorisée si :
+      //   1. Propriétaire
+      //   2. Inventaire public (isPublic = true dans userProfiles)
+      //   3. Ami accepté — la simple présence dans la liste d'amis suffit.
+      //      Pas de vérification de clé : la création de l'entrée
+      //      friends/{me} est déjà protégée par l'existence d'une
+      //      demande d'ami préalable (cf. règle plus bas), donc
+      //      impossible de s'auto-ajouter.
+      match /inventory/{itemId} {
+        allow write: if isOwner();
+        allow read:  if isOwner()
+          || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+          || (
+            request.auth != null
+            && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+          );
+      }
+
+      // ── Demandes d'amis entrantes ─────────────────────────────────
+      // Bob peut créer SA demande chez Alice (sauf si blacklisté)
+      // Alice seule peut lire, mettre à jour (accepter/refuser), supprimer
+      match /friendRequests/{requesterId} {
+        allow create: if request.auth != null
+          && request.auth.uid == requesterId
+          && !exists(/databases/$(database)/documents/users/$(userId)/blacklist/$(requesterId));
+        allow read, update, delete: if isOwner();
+        // Bob peut supprimer sa propre demande (retrait)
+        allow delete: if request.auth != null && request.auth.uid == requesterId;
+      }
+
+      // ── Amis acceptés ─────────────────────────────────────────────
+      // Alice gère sa liste — Bob peut lire SA propre entrée (pour récupérer sa clé)
+      // Acceptation ISO : l'accepteur peut écrire son entrée chez l'expéditeur
+      //   (request.auth.uid == friendId ET une demande de userId existe chez friendId)
+      // Suppression symétrique : un ami peut s'effacer lui-même de la liste
+      match /friends/{friendId} {
+        allow read:  if isOwner()
+          || (request.auth != null && request.auth.uid == friendId);
+        allow write: if isOwner();
+        // The acceptee can create their own entry in the requester's friends list
+        allow create: if request.auth != null
+          && request.auth.uid == friendId
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/friendRequests/$(userId));
+        // Either party can remove themselves from the other's list
+        allow delete: if request.auth != null
+          && request.auth.uid == friendId;
+      }
+
+      // ── Liste noire ───────────────────────────────────────────────
+      match /blacklist/{blockedId} {
+        allow read, write: if isOwner();
+      }
+
+      // ── Rangements (étagères de stockage) ─────────────────────────
+      // Lecture : même politique que l'inventaire — owner / public / amis.
+      // Écriture : owner uniquement.
+      // (Permet la vue Storage en mode ami / public, ISO avec inventory)
+      match /racks/{rackId} {
+        allow write: if isOwner();
+        allow read:  if isOwner()
+          || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+          || (
+            request.auth != null
+            && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+          );
+      }
+
+      // ── Balances (TigerScale heartbeats) ──────────────────────────
+      // Privé — la balance ESP32 s'authentifie comme le propriétaire et
+      // écrit son propre heartbeat. Aucun accès tiers.
+      match /scales/{mac} {
+        allow read, write: if isOwner();
+      }
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 📦 Index des médias                                         ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /mediaIndex/{folder} {
+      allow read, write: if false;
+      match /byId/{id} {
+        allow read, write: if false;
+      }
+    }
+    match /mediaIndex_product/{id} {
+      allow read, write: if false;
+    }
+    match /mediaIndex_serie/{id} {
+      allow read, write: if false;
+    }
+    match /mediaIndex/{legacyId} {
+      allow read, write: if false;
+    }
+  }
+}

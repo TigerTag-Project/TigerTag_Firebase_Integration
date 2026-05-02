@@ -1,0 +1,176 @@
+# 03 — Firestore data model
+
+```
+publicKeys/
+  {XXX-XXX}/                ← discovery code (key = code, doc id is the code)
+    uid           string    ← owner uid
+    claimedAt     timestamp
+
+userProfiles/                ← public-facing card (signed-in readable)
+  {uid}/
+    publicKey     string    ← duplicate of users/{uid}.publicKey
+    displayName   string    ← user's chosen pseudo
+    isPublic      boolean   ← inventory visible to ANY signed-in user
+    color_r/g/b   number?   ← avatar color components (optional)
+
+users/                       ← OWNER-ONLY (privateKey, email, full inventory)
+  {uid}/
+    displayName   string
+    googleName    string    ← admin reference, never displayed
+    firstName     string
+    lastName      string
+    email         string
+    publicKey     string    ← discovery code
+    privateKey    string    ← 40-char hex SECRET — never exposed
+    isPublic      boolean
+    Debug         boolean?  ← admin-only flag
+    roles         string?   ← "admin" | undefined
+
+    inventory/
+      {spoolId}/
+        uid               string   ← primary RFID UID
+        twin_uid          string?
+        id_brand          number   ← FK → id_brand.json
+        id_material       number   ← FK → id_material.json
+        color_name        string
+        online_color_list string[] ← optional ["#000","#aaa",…]
+        weight_available  number   ← grams
+        container_weight  number
+        capacity          number
+        container_id      string   ← FK → spools_filament.json
+        last_update       number   ← Unix ms
+        deleted           boolean
+        deleted_at        number?
+        rack_id           string?  ← if assigned to a rack
+        level             number?  ← shelf index (0 = bottom)
+        position          number?  ← slot index (0 = leftmost)
+
+    racks/
+      {rackId}/
+        name           string
+        level          number      ← number of shelves (1-15)
+        position       number      ← slots per shelf (1-20)
+        order          number      ← display order
+        lockedSlots    string[]    ← ["lv:pos", …]
+        createdAt      timestamp
+        lastUpdate     timestamp
+
+    friends/
+      {friendUid}/
+        displayName    string
+        addedAt        timestamp
+        key            string      ← friend's privateKey (used by rules)
+
+    friendRequests/
+      {requesterUid}/
+        displayName    string
+        requestedAt    timestamp
+        key            string      ← requester's privateKey
+
+    blacklist/
+      {blockedUid}/
+        displayName    string
+        blockedAt      timestamp
+
+    apiKeys/
+      {docId}/                     ← legacy Key6 (HTTP API)
+        ...
+
+    printers/
+      {brand}/{...}
+
+    prefs/
+      app/
+        lang           string
+
+    scales/                        ← TigerScale heartbeats
+      {mac}/
+        last_seen      timestamp   ← updated every ~30s by the ESP32
+        last_spool     string?     ← spoolId of the last weighed spool
+        fw_version     string
+        ...
+```
+
+## Field semantics
+
+### `inventory.{spoolId}.deleted`
+Soft-delete flag. Mobile and desktop apps **only honour `deleted: true`** —
+they do NOT fall back to checking `deleted_at`. Filter client-side with
+`if (deleted === true) hide`.
+
+### `inventory.{spoolId}.weight_available`
+Net filament weight in grams. Updated by:
+- TigerScale (writes via authenticated session as the owner)
+- Desktop app slider (debounced 500ms then writes)
+- HTTP `setSpoolWeightByRfid` Cloud Function (legacy, by RFID UID)
+
+When updating manually: also update `last_update = Date.now()`.
+
+### `racks.{rackId}.lockedSlots`
+Stored as `["0:0", "0:1", "1:5", …]` strings (`"<level>:<position>"`).
+Locked slots block drag-in/drag-out in the UI but allow read.
+
+### Lookup tables (NOT in Firestore)
+Brand, material, type, etc. IDs are resolved via static JSON files bundled
+with each client. Source of truth:
+
+```
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_brand.json
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_material.json
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_aspect.json
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_type.json
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_diameter.json
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_measure_unit.json
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/container_spool/spools_filament.json
+```
+
+Bundle these at build time, refresh weekly.
+
+## Common reads
+
+### List own spools
+```
+GET /v1/projects/{projectId}/databases/(default)/documents/users/{myUid}/inventory
+```
+
+### List own racks
+```
+GET /v1/projects/{projectId}/databases/(default)/documents/users/{myUid}/racks
+```
+
+### List friends
+```
+GET /v1/projects/{projectId}/databases/(default)/documents/users/{myUid}/friends
+```
+Each doc id = friend's uid.
+
+### Read a friend's spools (read-only access via Security Rules)
+```
+GET /v1/projects/{projectId}/databases/(default)/documents/users/{friendUid}/inventory
+```
+Authorization is YOUR token. Firestore rules check:
+`exists(users/{friendUid}/friends/{yourUid})` → if yes, allow.
+
+### Look up a friend by their public code (`XXX-XXX`)
+```
+GET /v1/projects/{projectId}/databases/(default)/documents/publicKeys/{XXX-XXX}
+```
+Returns `{ uid: "..." }` or 404.
+
+### Read a public profile
+```
+GET /v1/projects/{projectId}/databases/(default)/documents/userProfiles/{otherUid}
+```
+Always readable by signed-in users — no friendship check.
+
+## Common writes (owner only)
+
+| Operation | Path |
+|-----------|------|
+| Update spool weight | `users/{me}/inventory/{spoolId}` (PATCH `weight_available` + `last_update`) |
+| Soft-delete spool | same path with `deleted: true` |
+| Create rack | `users/{me}/racks/{newId}` |
+| Move spool to rack | `users/{me}/inventory/{spoolId}` (PATCH `rack_id` + `level` + `position`) |
+
+**You can only write to your own data.** Even if you have read access to
+a friend's inventory, writes to `users/{friendUid}/...` will be rejected.
