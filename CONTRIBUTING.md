@@ -68,7 +68,7 @@ A "contract change" is anything visible to a third-party client:
 **Process:**
 
 1. Make the code change in the relevant private repo
-   (`firebase-tigertag-functions`, `tigertag_connect1`, etc.).
+   (`TigerTag_Firebase_Backend`, `tigertag_connect1`, etc.).
 2. **In the same PR / release window**, open a PR here updating:
    - The relevant section of `docs/03-data-model.md`,
      `docs/04-friend-system.md`, etc.
@@ -92,7 +92,7 @@ A "contract change" is anything visible to a third-party client:
 
 ### Keeping `rules/firestore.rules` in sync
 
-The deployed source is in `firebase-tigertag-functions/firestore.rules`
+The deployed source is in `TigerTag_Firebase_Backend/firestore.rules`
 (private repo, French comments). The public mirror is here in
 `rules/firestore.rules` (English comments).
 
@@ -121,7 +121,7 @@ with the new app version.
 
 ### Internal vs public
 
-The private rules file (in `firebase-tigertag-functions`) keeps French
+The private rules file (in `TigerTag_Firebase_Backend`) keeps French
 comments — that's our internal source. The public mirror keeps English.
 Keeping them functionally identical is what matters; the comments diverge
 linguistically by design.
