@@ -607,5 +607,5 @@ When reading, check both `integerValue` and `doubleValue` since the field type d
 ---
 
 **Verified against:** Tiger Studio Manager v1.4.3 · TigerTag mobile (Flutter) latest · Firestore Rules deployed 2026-05-02
-**Contract version:** [v0.1.0](https://github.com/TigerTag-Project/TigerTag-Firebase-Integration/blob/main/CHANGELOG.md)
+**Contract version:** [v0.1.1](https://github.com/TigerTag-Project/TigerTag-Firebase-Integration/blob/main/CHANGELOG.md)
 **Drift?** Open an issue: https://github.com/TigerTag-Project/TigerTag-Firebase-Integration/issues

@@ -69,14 +69,26 @@ service cloud.firestore {
       //      No key check needed: creating the friends/{me} entry is already
       //      gated by the prior existence of a friend request (see rule
       //      below), so users can't self-add.
+      // Anti-flood guard: `list` is capped at 200 docs per request.
+      // Single-doc reads (`get`) are unrestricted.
       match /inventory/{itemId} {
         allow write: if isOwner();
-        allow read:  if isOwner()
+        allow get:   if isOwner()
           || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
           || (
             request.auth != null
             && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
           );
+        allow list:  if (
+            isOwner()
+            || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+            || (
+              request.auth != null
+              && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+            )
+          )
+          && request.query.limit != null
+          && request.query.limit <= 200;
       }
 
       // ── Incoming friend requests ──────────────────────────────────
@@ -117,15 +129,26 @@ service cloud.firestore {
       // ── Storage racks ─────────────────────────────────────────────
       // Read: same policy as inventory — owner / public / friends.
       // Write: owner only.
-      // (Enables the Storage view in friend / public mode, ISO with inventory)
+      // Anti-flood guard: `list` is capped at 50 racks per request
+      // (any normal user has < 20 racks; the cap is intentionally tight).
       match /racks/{rackId} {
         allow write: if isOwner();
-        allow read:  if isOwner()
+        allow get:   if isOwner()
           || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
           || (
             request.auth != null
             && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
           );
+        allow list:  if (
+            isOwner()
+            || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+            || (
+              request.auth != null
+              && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+            )
+          )
+          && request.query.limit != null
+          && request.query.limit <= 50;
       }
 
       // ── Scales (TigerScale heartbeats) ────────────────────────────

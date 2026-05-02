@@ -28,6 +28,44 @@ cycles in the wild.
 
 ---
 
+## [0.1.1] — 2026-05-02
+
+### Security
+- **`request.query.limit` guards** added to inventory and racks list
+  operations:
+  - `users/{uid}/inventory` list reads must specify `.limit(N)` with
+    N ≤ 200. Unbounded list reads are rejected with `permission-denied`.
+  - `users/{uid}/racks` list reads cap at 50.
+  - Single-doc reads (`get`) are unaffected.
+- **App Check enforcement** enabled on Firestore. Every request must
+  carry a valid `X-Firebase-AppCheck` header.
+  - Web clients use reCAPTCHA Enterprise.
+  - iOS uses DeviceCheck / App Attest.
+  - Android uses Play Integrity.
+  - Third-party clients (Home Assistant, ESP32, scripts) request a debug
+    token from the TigerTag team and embed it in the App Check header.
+- **Cloud Logging** anomaly detection: per-uid read counters are watched;
+  pathological patterns (> 5k reads/h sustained) trigger investigation
+  and may result in token revocation.
+
+### Changed
+- `docs/05-rate-limiting.md` "Current production status" callout updated
+  to reflect all four layers as active. The historical rollout plan is
+  preserved for reference.
+- `rules/firestore.rules` (public mirror) updated with the new `list`
+  guards. The deployed file is the source of truth — the public mirror
+  matches.
+
+### Notes for third-party integrators
+- **Pin to v0.1.1+** if your client makes list reads. Old clients that
+  did `.get()` without `.limit(N)` will now receive `permission-denied`
+  on list operations.
+- **Request a debug token** by opening an issue with: client name,
+  intended purpose, expected request volume, contact email. Tokens are
+  individually revocable.
+
+---
+
 ## [0.1.0] — 2026-05-02
 
 Initial public release. Establishes the source-of-truth contract for

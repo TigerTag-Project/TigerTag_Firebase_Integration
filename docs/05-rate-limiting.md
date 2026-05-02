@@ -5,23 +5,25 @@ don't do rate limiting on their own. To prevent abuse (a script hammering
 the API, exfiltration attempts, runaway loops), combine the four layers
 below.
 
-> ## Current production status (as of v0.1.0)
+> ## Current production status
 >
 > | Layer | Status |
 > |-------|--------|
 > | Layer 1 — Polling discipline (client recommendation) | ✅ Documented; clients are expected to follow |
-> | Layer 2 — `request.query.limit <= 200` guard in rules | ❌ **NOT yet deployed** — see roadmap below |
-> | Layer 3 — App Check enforcement on Firestore | ❌ **NOT yet enabled** — see roadmap below |
-> | Layer 4 — Cloud Logging + per-uid alerts | ❌ Not yet configured |
+> | Layer 2 — `request.query.limit` guard in rules | ✅ **Deployed** — `inventory` ≤ 200, `racks` ≤ 50 per request |
+> | Layer 3 — App Check enforcement on Firestore | ✅ **Enforced** — clients must attest origin (web reCAPTCHA / iOS DeviceCheck / Android Play Integrity / debug tokens for IoT + 3rd-party) |
+> | Layer 4 — Cloud Logging + per-uid alerts | ✅ Active — anomalous read patterns trigger investigation |
 >
-> **What this means for your client today:** the only enforcement is
-> "is the user authenticated and authorised by the rules?" There is no
-> per-request rate limit, no list-size cap, no App Check attestation.
-> Your client should still follow Layer 1 (polling discipline) — but
-> nothing on the server prevents abusive clients yet.
->
-> The TigerTag team will announce Layer 2/3/4 rollouts in the
-> [CHANGELOG](../CHANGELOG.md) ahead of time.
+> **What this means for your client today:**
+> - You **must** include `.limit(N)` on every list read (≤ 200 for
+>   inventory, ≤ 50 for racks). Unbounded list reads are rejected with
+>   `permission-denied`.
+> - You **must** send a valid App Check token on every Firestore request.
+>   See [§Layer 3](#layer-3--firebase-app-check-production-grade) for the
+>   per-platform setup. Third-party clients (HA, ESP32) request a debug
+>   token from the TigerTag team.
+> - Future enforcement changes are announced in the
+>   [CHANGELOG](../CHANGELOG.md) at least 1 month in advance.
 
 ## Layer 1 — Polling discipline (client-side)
 
@@ -64,17 +66,17 @@ Two effects:
 ## Layer 3 — Firebase App Check (production-grade)
 
 App Check cryptographically attests that a request comes from a legitimate
-**app instance**, not a script that scraped tokens. Recommended for
-production.
+**app instance**, not a script that scraped tokens. **Currently enforced
+on Firestore** — every request must carry a valid App Check token in the
+`X-Firebase-AppCheck` header or it's rejected with `401 Unauthorized`.
 
-### Enable on Firestore
+### Enabled on Firestore
 
-Firebase Console → Build → App Check → Firestore → "Enforce".
+Status: **Enforce** (Firebase Console → Build → App Check → Firestore).
 
-⚠️ **Test in "Monitor" mode first** for at least one week. App Check
-silently logs failures without blocking, so you can verify all your
-legitimate clients (desktop, mobile, ESP32, HA) are passing the check
-before flipping the enforcement switch.
+Any new client app added to the project starts in Monitor mode for its
+first week to give the developer time to verify their attestation flow,
+then is moved to Enforce.
 
 ### Per-platform attestation
 
@@ -131,16 +133,21 @@ can investigate and:
 Set a Firebase budget alert at e.g. $50/month. If usage spikes (typically
 a runaway client), you'll know within hours.
 
-## Recommended deployment plan
+## Historical rollout plan (kept for reference)
 
-| Step | When | Risk |
-|------|------|------|
-| 1. Polling discipline in client docs | now | none |
-| 2. Add `request.query.limit <= 200` to rules | now | breaks any client that listed > 200 — none in practice |
-| 3. Enable App Check in Monitor mode | next sprint | none, just observe |
-| 4. Whitelist 3rd-party clients (debug tokens) | when developers ask | low |
-| 5. Flip App Check to Enforce | after 2 weeks of clean Monitor logs | high — test thoroughly |
-| 6. Add Cloud Logging anomaly alert | once App Check is enforcing | none |
+The four layers were rolled out in this order:
+
+| Step | Risk at the time |
+|------|------------------|
+| 1. Polling discipline in client docs | none |
+| 2. Added `request.query.limit` caps in rules (inventory ≤ 200, racks ≤ 50) | breaks any client that listed unbounded — none in practice |
+| 3. Enabled App Check in Monitor mode | none, just observe |
+| 4. Whitelisted 3rd-party clients (debug tokens) | low |
+| 5. Flipped App Check to Enforce | medium — required all client apps to ship App Check init first |
+| 6. Added Cloud Logging anomaly alert | none |
+
+All steps are complete. New third-party integrations come in at step 4
+— request a debug token from the TigerTag team.
 
 ## What about Firestore's built-in quotas?
 
