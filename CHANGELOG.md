@@ -24,7 +24,38 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
-- (nothing pending)
+- **`docs/clients/tigerscale.md`** — full TigerScale ESP32 firmware contract.
+  Covers Firebase Auth flow (idToken refresh from NVS-stored refreshToken),
+  the two write paths (`scales/{mac}` heartbeat every 30 s, `inventory/{spoolId}`
+  weight + last_update), and the twin-tag self-healing decision matrix
+  (§6.1 — six-case table for what to do when 2 RFID tags are detected:
+  already-paired, asymmetric link, brand-new pair, conflict, etc.).
+  Defines the `weight_available` (number, grams, net) and `last_update`
+  (number, Unix ms) format expected by every TigerTag client. Includes a
+  10-point compliance checklist and a §11 addendum on reading rack +
+  position from `inventory.{spoolId}.rack_id` / `level` / `position` so
+  the scale's display can show "Rack 4 · A3" by doing one extra read on
+  `racks/{rack_id}`.
+- **Walk-through of "find a friend by code"** in `docs/03-data-model.md` —
+  end-to-end example showing the 6 reads/writes that flow across
+  `publicKeys/`, `userProfiles/`, `users/{uid}/friendRequests/`, and
+  `users/{uid}/friends/`. Explains why the `key` field stored on a
+  friend doc is the OWNER's privateKey (not the friend's) and how
+  privateKey rotation invalidates all friendships at once.
+
+### Changed
+- **`docs/03-data-model.md` rewritten** for clarity. The schema content is
+  identical, but the structure is now pedagogical: starts with an
+  "At a glance" map of the 3 top-level collections, then a per-collection
+  section with field tables AND a concrete filled-in JSON example for
+  every doc type (`publicKeys/{code}`, `userProfiles/{uid}`, `users/{uid}`,
+  `inventory/{spoolId}`, `racks/{rackId}`, `scales/{mac}`, `friends/{uid}`,
+  `friendRequests/{uid}`, `blacklist/{uid}`, `apiKeys/{docId}`,
+  `printers/{brand}/devices/{deviceId}`, `prefs/app`). New sections on
+  twin-tag handling, racks/scales reading patterns for embedded clients,
+  and the privateKey-as-friendship-capability mechanism. All
+  field-semantics and sensitive-fields content from the previous version
+  is preserved verbatim.
 
 ---
 
