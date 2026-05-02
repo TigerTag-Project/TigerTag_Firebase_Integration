@@ -5,25 +5,36 @@ don't do rate limiting on their own. To prevent abuse (a script hammering
 the API, exfiltration attempts, runaway loops), combine the four layers
 below.
 
-> ## Current production status
+> ## Current production status — soft rollout in progress
 >
-> | Layer | Status |
-> |-------|--------|
-> | Layer 1 — Polling discipline (client recommendation) | ✅ Documented; clients are expected to follow |
-> | Layer 2 — `request.query.limit` guard in rules | ✅ **Deployed** — `inventory` ≤ 200, `racks` ≤ 50 per request |
-> | Layer 3 — App Check enforcement on Firestore | ✅ **Enforced** — clients must attest origin (web reCAPTCHA / iOS DeviceCheck / Android Play Integrity / debug tokens for IoT + 3rd-party) |
-> | Layer 4 — Cloud Logging + per-uid alerts | ✅ Active — anomalous read patterns trigger investigation |
+> | Layer | Target | Currently deployed |
+> |-------|--------|--------------------|
+> | Layer 1 — Polling discipline (client recommendation) | ✅ — | ✅ — |
+> | Layer 2 — `request.query.limit` guard in rules | `inventory ≤ 200`, `racks ≤ 50` | 🟡 **Permissive** — guards are NOT in the deployed rules; Cloud Audit Logs track `.limit()` usage to measure how many clients still need to migrate. |
+> | Layer 3 — App Check on Firestore | Enforce | 🟡 **Monitor mode** — App Check tokens are checked and logged but invalid/missing tokens are NOT blocked. The Firebase Console "App Check" tab shows the % of verified vs. unverified requests per client app. |
+> | Layer 4 — Cloud Logging + alerts | Active | ✅ Audit logs feed BigQuery; per-uid anomaly alerts and "would-be-blocked" counters are dashboarded. |
 >
-> **What this means for your client today:**
-> - You **must** include `.limit(N)` on every list read (≤ 200 for
->   inventory, ≤ 50 for racks). Unbounded list reads are rejected with
->   `permission-denied`.
-> - You **must** send a valid App Check token on every Firestore request.
->   See [§Layer 3](#layer-3--firebase-app-check-production-grade) for the
->   per-platform setup. Third-party clients (HA, ESP32) request a debug
->   token from the TigerTag team.
-> - Future enforcement changes are announced in the
->   [CHANGELOG](../CHANGELOG.md) at least 1 month in advance.
+> ### What this means for your client today
+>
+> - **No request is currently rejected** for missing `.limit()` or
+>   missing App Check token. Existing apps in the wild keep working.
+> - **Build to the TARGET spec anyway** — when enforcement flips, your
+>   client should already comply. We give ≥ 1 month notice in the
+>   [CHANGELOG](../CHANGELOG.md) before the flip; not adapting earlier
+>   means scrambling at the deadline.
+> - **Concretely**: always pass `.limit(N)` on list reads (≤ 200 for
+>   inventory, ≤ 50 for racks); always include the `X-Firebase-AppCheck`
+>   header (web → reCAPTCHA, mobile → DeviceCheck/Play Integrity,
+>   third-party → request a debug token).
+>
+> ### Why soft rollout instead of immediate Enforce?
+>
+> Tens of users still run older Tiger Studio Manager / mobile app
+> versions that issue unbounded list reads or send no App Check token.
+> Hard-flipping to Enforce would brick those clients overnight. We
+> monitor real traffic for ~2 weeks, identify the laggard versions,
+> publish a forced-update cycle, then flip. The exact cutover date is
+> announced in the CHANGELOG.
 
 ## Layer 1 — Polling discipline (client-side)
 
@@ -44,8 +55,8 @@ users go below 30 seconds — Firestore will start throttling the project.
 ## Layer 2 — Bounded list reads (Security Rules)
 
 Without a `limit()` clause, a malicious script can request
-`users/{uid}/inventory` and get every doc in one shot. Cap this in the
-rules:
+`users/{uid}/inventory` and get every doc in one shot. Target rule shape
+(see `rules/firestore.rules` for full target file):
 
 ```javascript
 match /users/{uid}/inventory/{spoolId} {
@@ -56,27 +67,54 @@ match /users/{uid}/inventory/{spoolId} {
 }
 ```
 
-Two effects:
+Two effects (when enforced):
 1. Forces clients to paginate via `nextPageToken` for large inventories.
 2. Bounds each individual request to 200 docs — limits the "blast radius"
    of a single leaked token.
+
+### Current status
+
+**🟡 Soft rollout.** The strict guard above is the TARGET; it is NOT
+in the currently-deployed rules. The deployed rules accept any list
+read that passes the auth/friend check. We monitor query patterns via
+Cloud Audit Logs (Firestore `RunQuery` events include the `limit` field)
+and will deploy the strict rule once metrics show all client versions
+in use are passing `.limit()`.
+
+**Build to spec from day one.** Always pass `.limit(N)` on every list
+read in your client. When we flip the cutover (≥ 1 month notice in the
+[CHANGELOG](../CHANGELOG.md)), your client is unaffected.
 
 200 docs is plenty for any real user (typical inventory: 30 spools).
 
 ## Layer 3 — Firebase App Check (production-grade)
 
 App Check cryptographically attests that a request comes from a legitimate
-**app instance**, not a script that scraped tokens. **Currently enforced
-on Firestore** — every request must carry a valid App Check token in the
-`X-Firebase-AppCheck` header or it's rejected with `401 Unauthorized`.
+**app instance**, not a script that scraped tokens.
 
-### Enabled on Firestore
+### Status
 
-Status: **Enforce** (Firebase Console → Build → App Check → Firestore).
+**Currently in Monitor mode** on Firestore (Firebase Console → Build →
+App Check → Firestore). Concretely:
 
-Any new client app added to the project starts in Monitor mode for its
-first week to give the developer time to verify their attestation flow,
-then is moved to Enforce.
+- App Check tokens sent by clients are validated and the verdict is
+  logged in the Firebase Console metrics page.
+- Requests **without** a token, or with an **invalid** token, are still
+  served — they're just flagged in metrics as "unverified".
+- The TigerTag team watches the verified/unverified ratio per client
+  (web, iOS, Android, third-party). When 100% of legitimate clients
+  reach "verified" for ~7 consecutive days, the toggle flips to
+  **Enforce** and unverified requests start receiving 401.
+
+### Heads-up for third-party integrators
+
+Build with App Check support **now**. When the cutover happens, the
+CHANGELOG will give ≥ 1 month notice. If your client doesn't ship a
+valid token by then, it stops working.
+
+For HA, ESP32, scripts → request a debug token from the TigerTag team
+(see "Third-party debug tokens" below). Embed it once, and your client
+will be verified during Monitor mode and pass after the Enforce flip.
 
 ### Per-platform attestation
 

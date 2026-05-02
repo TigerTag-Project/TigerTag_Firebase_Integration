@@ -1,3 +1,28 @@
+// ─────────────────────────────────────────────────────────────────────
+// TigerTag Firestore Security Rules — TARGET state
+//
+// This file shows the rules in their TARGET form, including the
+// `request.query.limit` guards on list operations. These limit guards
+// are NOT yet enforced in production — we are in a soft-rollout window:
+//
+//   • The deployed rules currently allow unbounded list reads (no .limit()
+//     required). This protects clients running older Tiger Studio /
+//     mobile app versions that don't yet pass .limit() on every query.
+//
+//   • Cloud Audit Logs are watching `google.firestore.v1.Firestore.RunQuery`
+//     events. We track how often clients issue list reads without .limit()
+//     or with .limit() > 200 (50 for racks). When violations drop to
+//     ~zero across all client versions, the strict rules below will be
+//     deployed.
+//
+//   • Third-party integrations (HA, ESP32, scripts) should build to
+//     this TARGET spec from day one. Always include .limit(N) on every
+//     list read. Your client will be future-proof for the cutover.
+//
+// Status, monitoring data, and rollout schedule are tracked in
+// docs/05-rate-limiting.md and CHANGELOG.md.
+// ─────────────────────────────────────────────────────────────────────
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {

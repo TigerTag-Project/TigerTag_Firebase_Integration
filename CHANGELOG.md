@@ -28,6 +28,42 @@ cycles in the wild.
 
 ---
 
+## [0.1.2] — 2026-05-02
+
+### Changed
+- **Soft rollout for Layer 2 + Layer 3** instead of hard cutover.
+  Previous v0.1.1 release described `request.query.limit` guards and
+  App Check enforcement as already deployed. They are **not** — both are
+  in soft-rollout / Monitor mode to avoid bricking older client versions
+  still in the wild.
+- `rules/firestore.rules`: kept as the TARGET state with explicit header
+  comment clarifying that the deployed rules are currently more
+  permissive, and pointing readers to the rollout schedule.
+- `docs/05-rate-limiting.md`: status callout split into "Target" vs
+  "Currently deployed" columns. Layer 2 marked as 🟡 **Permissive** in
+  prod with Cloud Audit Logs measuring violations. Layer 3 marked as
+  🟡 **Monitor mode** in App Check (logging unverified requests but
+  not blocking).
+- Layer 2 and Layer 3 sections rewritten in present tense reflecting
+  Monitor / soft rollout, not Enforce.
+
+### Added
+- Explicit "Why soft rollout" rationale in `docs/05-rate-limiting.md`
+  explaining that we wait for unverified-request count to drop to ~zero
+  across all client versions before flipping to Enforce.
+- Cloud Audit Logs are now active and feed BigQuery — per-uid anomaly
+  alerts and "would-be-blocked" counters are dashboarded.
+
+### Notes for third-party integrators
+- **Build to the TARGET spec from day one.** Always pass `.limit(N)` on
+  list reads, always include the `X-Firebase-AppCheck` header. The
+  cutover to Enforce will be announced ≥ 1 month ahead in this
+  changelog.
+- Today, your client is **not rejected** for missing those — but it
+  will be after cutover.
+
+---
+
 ## [0.1.1] — 2026-05-02
 
 ### Security
