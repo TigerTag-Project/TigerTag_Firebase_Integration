@@ -76,8 +76,16 @@ users/                       ← OWNER-ONLY (privateKey, email, full inventory)
       {docId}/                     ← legacy Key6 (HTTP API)
         ...
 
-    printers/
-      {brand}/{...}
+    printers/                      ← per-brand 3D-printer registry
+      {brand}/                     ← brand id (see table below)
+        devices/                   ← one doc per physical printer
+          {deviceId}/
+            id              string
+            printerName     string
+            printerModelId  string?
+            isActive        boolean
+            updatedAt       number     ← Unix ms
+            …brand-specific fields…
 
     prefs/
       app/
@@ -105,6 +113,72 @@ Net filament weight in grams. Updated by:
 - HTTP `setSpoolWeightByRfid` Cloud Function (legacy, by RFID UID)
 
 When updating manually: also update `last_update = Date.now()`.
+
+### `printers/{brand}/devices/{deviceId}`
+
+The mobile app stores a per-brand registry of the user's 3D printers under
+`users/{uid}/printers/{brand}/devices/{deviceId}`. The `{brand}` doc id is
+a fixed literal — one of:
+
+| `{brand}` | Used by | Connection |
+|-----------|---------|------------|
+| `bambulab` | Bambu Lab printers (X1C, P1S, A1, …) | MQTT (LAN broker) |
+| `creality` | Creality K-series, Hi, etc. | WebSocket (Klipper / Moonraker) |
+| `elegoo` | Elegoo Centauri, etc. | MQTT |
+| `flashforge` | FlashForge Adventurer-series, etc. | HTTP polling |
+| `snapmaker` | Snapmaker WebSocket-capable models | WebSocket |
+
+Common fields on every device doc:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `id` | string | Same as the doc id, redundant for clients reading by full doc |
+| `printerName` | string | User-defined label ("Living room X1C") |
+| `printerModelId` | string? | FK into `assets/db/printers/{brand}_printer_models.json` (mobile bundle) |
+| `isActive` | boolean | Whether this printer is the currently-selected one in the UI |
+| `updatedAt` | number | Last change time, Unix ms |
+| `sortIndex` | number? | (bambulab only) display order |
+
+Brand-specific fields:
+
+| Brand | Extra fields |
+|-------|--------------|
+| **bambulab** | `broker` (MQTT host / IP), `serialNumber`, `password` (MQTT access code) |
+| **creality** | `ip`, `account`, `password` (HTTP Basic auth for WS) |
+| **elegoo** | `ip`, `sn` (serial number), `mqttPassword` (optional, falls back to default) |
+| **flashforge** | `ip`, `serialNumber`, `password` |
+| **snapmaker** | `ip` |
+
+### ⚠️ Sensitive fields — third-party clients
+
+The following fields contain secrets that grant **direct LAN control** of the
+user's 3D printer. A client that exposes them (logs, attributes, network
+traces) puts the user's printer at risk of remote takeover by anyone on the
+local network.
+
+| Brand | Sensitive fields |
+|-------|------------------|
+| bambulab | `password`, `serialNumber` |
+| creality | `account`, `password` |
+| elegoo | `mqttPassword`, `sn` |
+| flashforge | `password`, `serialNumber` |
+| snapmaker | _(none)_ |
+
+**Rules for third-party clients (Home Assistant, scripts, etc.):**
+
+- ✅ **OK** to read these fields if the user is opted in and you connect to
+  their printer on their behalf.
+- ❌ **Never** include them in entity attributes, log lines, error messages,
+  or status pages.
+- ❌ **Never** transmit them outside the user's local network.
+- ❌ **Never** persist them in plaintext in HA YAML / config files —
+  use the integration's encrypted config entry storage.
+- ❌ **Never** read them on a friend's account (the rules forbid it anyway —
+  `printers` is owner-only — but be defensive).
+
+If your integration only needs to **list** the printers (e.g. show "User
+has 3 printers" in a dashboard), read just `printerName`, `printerModelId`,
+`isActive`, `updatedAt` and ignore the rest.
 
 ### `racks.{rackId}.lockedSlots`
 Stored as `["0:0", "0:1", "1:5", …]` strings (`"<level>:<position>"`).
