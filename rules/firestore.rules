@@ -182,6 +182,23 @@ service cloud.firestore {
       match /scales/{mac} {
         allow read, write: if isOwner();
       }
+
+      // ── UID migration map (decimal legacy → hex canonical) ────────
+      // See `docs/clients/tigerscale-doc-schema.md` § UID format. Each
+      // entry's doc id is the legacy decimal UID; the body carries the
+      // matching hex doc id. Lookups via this map let any client holding
+      // an old decimal UID resolve it to the canonical hex doc.
+      // Read: owner AND accepted friends (a friend may hold a decimal
+      // UID picked up from this user's earlier inventory snapshot).
+      // Write: owner only.
+      match /uidMigrationMap/{decimalUid} {
+        allow read:  if isOwner()
+          || (
+            request.auth != null
+            && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+          );
+        allow write: if isOwner();
+      }
     }
 
     // ╔══════════════════════════════════════════════════════════════╗

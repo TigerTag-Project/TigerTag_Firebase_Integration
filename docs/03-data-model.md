@@ -409,6 +409,85 @@ Brand-specific extras:
 }
 ```
 
+### `users/{uid}/uidMigrationMap/{decimal_uid}` — legacy-to-canonical UID lookup table
+
+Across the TigerTag stack, RFID UIDs are moving from a **decimal big-endian string** representation (legacy, written by older mobile-app versions) to a **hex uppercase, no-separators** representation (canonical, going forward). Both forms encode the same integer value — `"8307741719072896"` and `"1D895E7C004A80"` decode to the same number — so the choice is representational, not data.
+
+This sub-collection is the **bridge**. Whenever a client that has write access (Tiger Studio Manager today, the new mobile app version once deployed, or any third-party integrator that opts in) sees a decimal-format `inventory/{spoolId}` doc, it migrates the doc to the hex form and writes a corresponding entry here so any other client still holding the old decimal id can resolve it.
+
+#### Doc id
+
+The doc id is the **legacy decimal UID** of the spool, exactly as it appeared on the original inventory doc id (e.g. `"8307741719072896"`).
+
+#### Fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `hex_uid` | string | ✅ | The hex uppercase UID that now serves as the new `inventory/{spoolId}` doc id (e.g. `"1D895E7C004A80"`). |
+| `migrated_at` | Firestore `Timestamp` | ✅ | Server timestamp when the migration was committed. |
+| `migrated_by` | string | optional | Identifier of the client that did the migration — e.g. `"studio-manager"`, `"mobile-app-v2.3"`. Useful for audit. |
+
+#### Example
+
+```json
+users/alice123abcDEF/uidMigrationMap/8307741719072896
+{
+  "hex_uid":     "1D895E7C004A80",
+  "migrated_at": "2026-05-03T10:23:11.000Z",
+  "migrated_by": "studio-manager"
+}
+```
+
+#### Reading flow for clients still holding a decimal id
+
+```
+1. Try GET users/{uid}/inventory/{decimal_uid}
+   ↳ found → use it directly (the user hasn't been migrated yet)
+   ↳ 404   → continue
+
+2. GET users/{uid}/uidMigrationMap/{decimal_uid}
+   ↳ returns { hex_uid: "..." }
+   ↳ 404 → the spool truly does not exist for this user, surface as
+           "unknown UID" in your client
+
+3. GET users/{uid}/inventory/{hex_uid}
+   ↳ returns the spool data
+```
+
+Cost: 2 extra reads per resolution when the doc has been migrated (one 404 + one map lookup). Once your client has been updated to write hex directly, this fallback path is dead code and can be removed in a future release.
+
+#### Migration responsibility — shared across clients
+
+The same algorithm runs in **every TigerTag client that has write access to a user's inventory**:
+
+- **Tiger Studio Manager** (desktop) — runs lazily on every inventory snapshot, drains a queue with ~200 ms politeness gap, idempotent. Implementation: see `maybeMigrateDecimalSpoolIds()` in `renderer/inventory.js`.
+- **Mobile app v2+** (post-migration release) — same algorithm, ported.
+- **TigerScale firmware** — only writes hex; for any legacy decimal doc it encounters during a weight update, it can rely on Studio / mobile to do the migration later, or do its own atomic rename when it has confidence in the data.
+- **Third-party integrations** with write access can opt in but it's not required — they can simply use the read fallback chain above without ever migrating.
+
+Each client follows the same atomic-batch pattern, so concurrent migrations from different devices converge to the same hex doc id with the same data:
+
+```
+Atomic batch (one per spool):
+  1. SET    inventory/{hex_uid}            = data (with merge:true so a
+                                              concurrent partial-stub from
+                                              another client doesn't wipe
+                                              fields we already migrated)
+  2. SET    uidMigrationMap/{decimal_uid}  = { hex_uid, migrated_at, migrated_by }
+  3. UPDATE inventory/{T}.twin_tag_uid     = hex_uid
+            (for every doc T whose twin_tag_uid currently points at decimal_uid)
+  4. DELETE inventory/{decimal_uid}
+```
+
+#### Read access — owner + friends
+
+The Firestore Security Rule for this collection grants **read** access to:
+
+- The owner (`isOwner()`)
+- Any accepted friend (`exists(users/{userId}/friends/{request.auth.uid})`)
+
+A friend may have a stale decimal UID in their cache (from a past inventory snapshot of the owner) and need to resolve it. **Write** access is owner-only.
+
 ---
 
 ## Field semantics — important nuances
