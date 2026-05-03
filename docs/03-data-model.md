@@ -157,64 +157,198 @@ Each of these lives under `users/{uid}/<sub>/`. Read access varies; write is **a
 
 ### `users/{uid}/inventory/{spoolId}` — filament spools
 
-The doc id IS the RFID tag UID, formatted as **uppercase HEX, no separators** (e.g. `041A2B3C4D5E6F80`). One doc per RFID-tagged spool.
+The doc id IS the RFID tag UID. Two formats coexist (decimal big-endian and hex uppercase) — see [§ UID format](#user---uidmigrationmapdecimal_uid--legacy-to-canonical-uid-lookup-table) above. One document per RFID-tagged spool.
+
+The schema is intentionally generous — many fields are optional, only filled when the source RFID chip carries them or when the user has manually edited the spool. Below the fields are grouped by purpose; types and semantics are exhaustive.
+
+#### Identity
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `uid` | string | ✅ | Same as the doc id (denormalised for clients reading without the path) |
-| `twin_tag_uid` | string \| null | optional | Linked partner tag UID — when ONE physical spool has TWO RFID stickers (e.g. inner TD1 + outer TigerTag). Both docs reference each other. See [tigerscale.md §6](./clients/tigerscale.md) for the self-healing rules. |
-| `id_brand` | number | ✅ | FK into [`id_brand.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_brand.json) |
-| `id_material` | number | ✅ | FK into [`id_material.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_material.json) |
-| `id_aspect` | number | optional | FK into [`id_aspect.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_aspect.json) (matte / silk / glossy / …) |
-| `id_type` | number | optional | FK into [`id_type.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_type.json) (filament / pellets / …) |
-| `id_tigertag` | number | optional | TigerTag protocol version — `1` = TigerTag, `2` = TigerTag+ (server-side artwork) |
-| `color_name` | string | optional | Human-readable colour name |
-| `online_color_list` | string[] | optional | Array of hex colours (`["#FFFFFF"]` for solid, `["#FF0000","#000000","#FFFFFF"]` for multicolour) |
-| `weight_available` | number | ✅ | **NET filament weight in grams** (raw scale reading minus container_weight) |
-| `container_weight` | number | optional | Empty-spool tare weight in grams |
-| `measure_gr` (or `capacity`) | number | optional | Total capacity in grams (e.g. 1000 for a 1 kg spool) |
-| `container_id` | string | optional | FK into [`spools_filament.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/container_spool/spools_filament.json) — identifies which physical spool model |
-| `last_update` | number | ✅ | **Unix MILLISECONDS** of the last write (use `Date.now()`) |
-| `deleted` | boolean | optional | Soft-delete flag. Clients hide if `deleted === true`. |
-| `deleted_at` | number | optional | Unix ms when deleted (informational only) |
-| `rack_id` | string \| null | optional | FK → `users/{uid}/racks/{rackId}` if placed on a shelf |
-| `level` | number \| null | optional | Shelf row index (1-indexed, 1 = bottom). Convert to letter for UI (1→A, 2→B, …) |
-| `position` | number \| null | optional | Slot column index (1-indexed, 1 = leftmost) |
-| `series` / `label` / `name` / `sku` / `barcode` | string | optional | Branding fields — present on TigerTag+ encoded tags |
-| `info1` / `info2` / `info3` | boolean | optional | Refill / Recycled / Filled badges (TigerTag protocol) |
-| `data1`–`data7` | number | optional | Print-temperature data — see [§ data1-data7 fields](#data1-data7--print-parameters) below for the per-field semantics |
-| `TD` | number | optional | Filament transmission distance |
-| `LinkYoutube` / `LinkMSDS` / `LinkTDS` / `LinkROHS` / `LinkREACH` / `LinkFOOD` | string | optional | External resource URLs |
-| `url_img` | string | optional | Server-hosted spool artwork (TigerTag+ only) |
+| `twin_tag_uid` | string \| null | optional | Linked partner tag UID — when ONE physical spool has TWO RFID stickers (e.g. inner TD1 + outer TigerTag). Both docs reference each other; updates must be mirrored. See [tigerscale.md §6](./clients/tigerscale.md). |
+| `id_tigertag` | number | optional | TigerTag chip identifier (per-tag value written at encoding time) |
+| `id_product` | number | optional | TigerTag+ product registry id — used to fetch online artwork (`url_img`) and metadata from the CDN |
+| `timestamp` | number | optional | RFID chip's own encoding-time clock value (set by the TigerTag encoder, not Unix ms — opaque) |
 
-**Example doc** — `users/alice123abcDEF/inventory/041A2B3C4D5E6F80`:
+#### Brand / model foreign keys
+
+All FK fields are numeric ids that resolve via the [lookup tables](#lookup-tables-not-in-firestore) (live API + GitHub snapshot, both formats accepted).
+
+| Field | Type | Required | Resolves via |
+|---|---|---|---|
+| `id_brand` | number | ✅ | [`id_brand.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_brand.json) — Bambu Lab, Polymaker, Sunlu, Rosa3D, … |
+| `id_material` | number | ✅ | [`id_material.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_material.json) — PLA, PETG, ABS, ASA, TPU, PLA-CF, … |
+| `id_type` | number | optional | [`id_type.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_type.json) — filament, pellets, …  |
+| `id_aspect1` | number | optional | [`id_aspect.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_aspect.json) — primary finish (matte, silk, glossy, glow, …) |
+| `id_aspect2` | number | optional | Same lookup table — secondary finish if applicable; `0` when none |
+| `id_unit` | number | optional | [`id_measure_unit.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_measure_unit.json) — typically `g` for filament |
+
+#### Branding text
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | User-visible colour / variant name (e.g. `"White"`, `"Black Matte"`, `"🇫🇷 blue blanc rouge"`) — note: this is the COLOUR/VARIANT name, NOT the user pseudo |
+| `series` | string | Product line / series within the brand (e.g. `"PLA Speed Matt"`, `"Basic"`) |
+| `sku` | string | Manufacturer SKU |
+| `barcode` | string | EAN-13 / UPC barcode |
+| `emoji` | string | Optional emoji associated with the spool (`""` if none) |
+| `message` | string | Optional user-set custom message (`""` if none) |
+
+#### Colour encoding
+
+The chip stores **up to three RGB triplets** for multi-colour filaments (gradient, tri-colour, etc.). The dedicated `online_color*` fields hold the high-level interpretation that clients render directly.
+
+| Field | Type | Description |
+|---|---|---|
+| `color_r`, `color_g`, `color_b`, `color_a` | number 0–255 | Primary RGBA. `color_a` is the alpha channel; usually `255` (opaque). |
+| `color_r2`, `color_g2`, `color_b2` | number 0–255 | Secondary RGB (used for duo / tri / gradient). All three `0` when not applicable. |
+| `color_r3`, `color_g3`, `color_b3` | number 0–255 | Tertiary RGB (used for tri / gradient). All three `0` when not applicable. |
+| `online_color` | string | Resolved full hex with alpha `"#RRGGBBAA"` (e.g. `"#FFFFFFFF"`) — convenience field for clients that want a single string instead of computing from RGB components. |
+| `online_color_type` | string enum | One of `"mono"`, `"duo"`, `"tri"`, `"gradient"`, `"glitter"`, `"marble"`, etc. Drives how the UI renders the colour swatch (single fill vs. linear gradient vs. radial vs. textured). |
+| `online_color_list` | string[] | Array of hex colours **without `#`**, usually one entry for `mono`, two/three for `duo`/`tri`. Example: `["FBF4F4"]`, `["FF0000", "000000", "FFFFFF"]`. |
+
+#### Weight & container
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `weight_available` | number | ✅ | **NET filament weight in grams** (raw scale reading minus `container_weight`) |
+| `container_weight` | number | optional | Empty-spool tare weight in grams (e.g. `250` for a Rosa3D Masterspool) |
+| `container_id` | string | optional | FK into [`spools_filament.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/container_spool/spools_filament.json) — identifies the physical spool model (e.g. `"rosa3d_masterspool_white"`, `"BambuLab_Spool_1KG"`) |
+| `measure` | number | optional | Total capacity in grams when full (e.g. `1000` for a 1 kg spool). Same value as `measure_gr`. |
+| `measure_gr` | number | optional | Alias of `measure` — both fields are written. Read either; prefer `measure_gr` for clarity. |
+
+#### Print parameters (binary slot encoding)
+
+See [§ data1–data7 fields](#data1-data7--print-parameters) for the per-slot semantics.
+
+| Field | Type | Description |
+|---|---|---|
+| `data1` | number | Filament diameter (FK → `id_diameter.json`) |
+| `data2` | number | Nozzle min temperature (°C) |
+| `data3` | number | Nozzle max temperature (°C) |
+| `data4` | number | Drying / annealing temperature (°C) |
+| `data5` | number | Drying duration (hours) |
+| `data6` | number | Bed min temperature (°C) |
+| `data7` | number | Bed max temperature (°C) |
+| `TD` | number | Filament transmission distance (TD value, in arbitrary units of the TD1S sensor) |
+
+#### Status badges
+
+Booleans encoded on the chip — clients render small chips next to the spool.
+
+| Field | Type | Meaning when `true` |
+|---|---|---|
+| `info1` | boolean | **Refill** — refilled spool (the user replaced filament on a re-used Masterspool) |
+| `info2` | boolean | **Recycled** — recycled / sustainable filament |
+| `info3` | boolean | **Filled** — pre-filled spool (factory full at encoding time) |
+
+#### External links
+
+All link fields use the sentinel `"--"` to mean "not provided" (treat as missing / hide in UI).
+
+| Field | Type | Description |
+|---|---|---|
+| `LinkYoutube` | string | Tutorial / unboxing video |
+| `LinkMSDS` | string | Material Safety Data Sheet PDF |
+| `LinkTDS` | string | Technical Data Sheet PDF |
+| `LinkROHS` | string | RoHS compliance document |
+| `LinkREACH` | string | REACH compliance document |
+| `LinkFOOD` | string | Food-contact certification document |
+| `LinkTIPS` | string | Printing-tips article / page |
+| `url_img` | string | CDN URL of the spool artwork (TigerTag+ only — populated when `id_product` is set) |
+
+#### Storage location
+
+| Field | Type | Description |
+|---|---|---|
+| `rack_id` | string \| null | FK → `users/{uid}/racks/{rackId}` if placed on a rack |
+| `level` | number \| null | Shelf row index, **0-indexed** (level 0 = first row, displayed as `A` in the UI; level 1 = `B`; …) |
+| `position` | number \| null | Slot column index, **0-indexed** (position 0 = leftmost; UI displays as 1, 2, 3, …) |
+
+> **Indexing reminder** — both `level` and `position` are **0-indexed** in storage but rendered 1-indexed in the UI. A spool at `level=0, position=5` displays as `A6`. When writing UI code, always do `+1` for the column number and `String.fromCharCode(65 + level)` for the row letter.
+
+#### Lifecycle / timestamps
+
+| Field | Type | Description |
+|---|---|---|
+| `last_update` | number (Unix ms) | Last user-driven write — use `Date.now()` when patching from clients |
+| `updated_at` | Firestore `Timestamp` | Server-side timestamp written on every Firestore commit (object `{ seconds, nanoseconds }`) |
+| `timestamp` | number | Original encoding-time clock from the RFID chip (set once at TigerTag encoding, never updated by clients) |
+| `needUpdateAt` | number (Unix ms) | When the chip is due for a refresh write (e.g. content updated server-side after the last on-chip encoding) |
+| `deleted` | boolean \| null | Soft-delete flag. Clients hide the spool if `deleted === true`. `null` (or absent) = active. |
+| `deleted_at` | number (Unix ms) | When the soft-delete happened (informational; clients only check `deleted`) |
+
+---
+
+#### Real example — a Rosa3D PLA Speed Matt White (TigerTag+)
 
 ```json
+users/alice/inventory/1D138AF60D1080
 {
-  "uid": "041A2B3C4D5E6F80",
-  "twin_tag_uid": "0B2C3D4E5F60718A",
-  "id_brand": 12,
-  "id_material": 3,
-  "id_aspect": 1,
-  "id_type": 1,
-  "id_tigertag": 2,
-  "color_name": "Pure White",
-  "online_color_list": ["#FFFFFF"],
-  "weight_available": 247.3,
-  "container_weight": 245,
-  "measure_gr": 1000,
-  "container_id": "BambuLab_Spool_1KG",
-  "last_update": 1735851623000,
-  "deleted": false,
-  "rack_id": "rack_xyz789",
-  "level": 2,
-  "position": 3,
-  "series": "Basic PLA",
-  "data1": 175,
-  "data2": 200, "data3": 230,
-  "data6": 50,  "data7": 60
+  "uid":               "1D138AF60D1080",
+  "twin_tag_uid":      "1DFCFBF60D1080",
+  "id_tigertag":       3155151767,
+  "id_product":        3203148594,
+  "timestamp":         810157825,
+
+  "id_brand":          19961,
+  "id_material":       38219,
+  "id_type":           142,
+  "id_aspect1":        247,
+  "id_aspect2":        0,
+  "id_unit":           21,
+
+  "name":              "White",
+  "series":            "PLA Speed Matt",
+  "sku":               "PWB-3D-F04768",
+  "barcode":           "5907753137890",
+  "emoji":             "",
+  "message":           "",
+
+  "color_r": 255, "color_g": 255, "color_b": 255, "color_a": 255,
+  "color_r2": 0,  "color_g2": 0,  "color_b2": 0,
+  "color_r3": 0,  "color_g3": 0,  "color_b3": 0,
+  "online_color":      "#FFFFFFFF",
+  "online_color_type": "mono",
+  "online_color_list": ["FBF4F4"],
+
+  "weight_available":  449,
+  "container_weight":  250,
+  "container_id":      "rosa3d_masterspool_white",
+  "measure":           1000,
+  "measure_gr":        1000,
+
+  "data1": 56,         "data2": 190, "data3": 250,
+  "data4": 50,         "data5": 4,
+  "data6": 40,         "data7": 60,
+  "TD":    6.6,
+
+  "info1": true,
+  "info2": false,
+  "info3": false,
+
+  "LinkYoutube":       "https://cdn.tigertag.io/files/19961/How-to-Assemble-ROSA3D-Masterspool-Discs720p.mp4",
+  "LinkMSDS":          "https://www.rosa3d.pl/files/fc9559a5-4057-4972-a71e-4e12c41778a4",
+  "LinkTDS":           "https://www.rosa3d.pl/en/product/pdf/1276",
+  "LinkROHS":          "--",
+  "LinkREACH":         "--",
+  "LinkFOOD":          "--",
+  "LinkTIPS":          "--",
+  "url_img":           "https://cdn.tigertag.io/img?id=3203148594",
+
+  "rack_id":           "Yjz2BZku2X3ASyiNXyqi",
+  "level":             0,
+  "position":          5,
+
+  "last_update":       1777578133447,
+  "updated_at":        { "seconds": 1763717595, "nanoseconds": 317000000 },
+  "needUpdateAt":      1777578133447,
+  "deleted":           null
 }
 ```
+
+This example is a **TigerTag+** spool (note the `url_img` populated, `id_product` non-zero, full `LinkXXX` set, `info1: true` for "refill" because Rosa3D Masterspools are designed to be refilled). A bare **TigerTag** spool would have many of these fields as `"--"` / `0` / absent.
 
 > **Reading hint** — twin tags share the same physical spool, so when a scale or manual edit updates `weight_available`, BOTH docs (the primary and the one referenced by `twin_tag_uid`) must be patched in a single batch with identical values. See [tigerscale.md §6](./clients/tigerscale.md).
 
