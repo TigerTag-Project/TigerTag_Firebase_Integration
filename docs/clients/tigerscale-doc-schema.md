@@ -320,7 +320,7 @@ Listing operations (`get()` on a whole inventory collection) handle mixed format
 
 ### TigerScale lookup policy — hex first, decimal fallback
 
-When the firmware detects an RFID tag and needs to find the matching inventory doc to read `container_weight`, `rack_id`, `level`, `position`:
+When the firmware detects an RFID tag and needs to find the matching inventory doc to read `container_weight` and the storage location (`rack.id` / `rack.level` / `rack.position` — or the legacy flat `rack_id` / `level` / `position` on older docs):
 
 ```
 1. Convert the raw RFID bytes to HEX uppercase (canonical)

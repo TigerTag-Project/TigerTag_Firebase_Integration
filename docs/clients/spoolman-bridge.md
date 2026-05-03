@@ -124,9 +124,11 @@ re-sync without creating duplicates.
 
 ### TigerTag fields that don't have a Spoolman equivalent
 
-- `rack_id`, `level`, `position` → physical storage location, no equivalent
-  in Spoolman. You can stuff them into `comment` or `extra.tigertag_rack`
-  if you want.
+- `rack` (object `{ id, level, position }`) → physical storage location,
+  no equivalent in Spoolman. You can stuff it into `comment` or
+  `extra.tigertag_rack` if you want. Older docs may still carry flat
+  `rack_id` / `level` / `position` at the top level — read both for
+  backward compatibility (see [03-data-model.md → Storage location](../03-data-model.md#storage-location)).
 - `online_color_list[1..]` → only relevant for multicolor; mapped via
   `multi_color_hexes`.
 - `container_id` → resolves to a container model name; Spoolman tracks the

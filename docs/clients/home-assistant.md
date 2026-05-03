@@ -205,9 +205,9 @@ users/
         container_id      string       ← FK → data/container_spool/spools_filament.json
         last_update       number       ← Unix ms
         deleted           boolean      ← soft-delete flag
-        rack_id           string?      ← if assigned to a rack
-        level             number?      ← shelf index in rack (0 = bottom)
-        position          number?      ← slot index in shelf (0 = leftmost)
+        rack              object?      ← { id, level, position } if placed; null/absent otherwise
+                                       (legacy docs may have flat rack_id/level/position
+                                        at the top level — read both for compatibility)
 
     racks/
       {rackId}/                        ← one doc per storage rack
@@ -779,9 +779,11 @@ class SpoolSensor(CoordinatorEntity, SensorEntity):
                     "id_material":spool.get("id_material"),
                     "color_name": spool.get("color_name"),
                     "capacity":   spool.get("capacity"),
-                    "rack_id":    spool.get("rack_id"),
-                    "level":      spool.get("level"),
-                    "position":   spool.get("position"),
+                    # Storage location — prefer the nested `rack` object,
+                    # fall back to the legacy flat fields for older docs.
+                    "rack_id":    (spool.get("rack") or {}).get("id")       or spool.get("rack_id"),
+                    "level":      (spool.get("rack") or {}).get("level")    or spool.get("level"),
+                    "position":   (spool.get("rack") or {}).get("position") or spool.get("position"),
                 }
         return {}
 

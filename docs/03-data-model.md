@@ -260,13 +260,34 @@ All link fields use the sentinel `"--"` to mean "not provided" (treat as missing
 
 #### Storage location
 
+Storage location is grouped into a single `rack` sub-object — same shape as `updated_at`, easier to find / serialise / migrate. When the spool is not placed, the whole `rack` field is `null` (or absent). When placed:
+
 | Field | Type | Description |
 |---|---|---|
-| `rack_id` | string \| null | FK → `users/{uid}/racks/{rackId}` if placed on a rack |
-| `level` | number \| null | Shelf row index, **0-indexed** (level 0 = first row, displayed as `A` in the UI; level 1 = `B`; …) |
-| `position` | number \| null | Slot column index, **0-indexed** (position 0 = leftmost; UI displays as 1, 2, 3, …) |
+| `rack` | object \| null | Storage-location group, or `null` if the spool is not placed in a rack |
+| `rack.id` | string | FK → `users/{uid}/racks/{rackId}` |
+| `rack.level` | number | Shelf row index, **0-indexed** (level 0 = first row, displayed as `A` in the UI; level 1 = `B`; …) |
+| `rack.position` | number | Slot column index, **0-indexed** (position 0 = leftmost; UI displays as 1, 2, 3, …) |
 
-> **Indexing reminder** — both `level` and `position` are **0-indexed** in storage but rendered 1-indexed in the UI. A spool at `level=0, position=5` displays as `A6`. When writing UI code, always do `+1` for the column number and `String.fromCharCode(65 + level)` for the row letter.
+```json
+"rack": {
+  "id":       "Yjz2BZku2X3ASyiNXyqi",
+  "level":    0,
+  "position": 5
+}
+```
+
+> **Indexing reminder** — both `rack.level` and `rack.position` are **0-indexed** in storage but rendered 1-indexed in the UI. A spool at `level=0, position=5` displays as `A6`. When writing UI code, always do `+1` for the column number and `String.fromCharCode(65 + level)` for the row letter.
+
+> **Legacy schema (deprecated)** — earlier clients wrote three top-level fields `rack_id` / `level` / `position` instead of the grouped `rack` object. Tiger Studio Manager v1.4.7 introduced an automatic, idempotent in-place migration that repackages legacy docs into the nested form (with `FieldValue.delete()` on the old keys). Reads should prefer `rack.id` / `rack.level` / `rack.position` and fall back to the flat keys for backward compatibility:
+>
+> ```js
+> const rackId    = data.rack?.id        ?? data.rack_id  ?? null;
+> const rackLevel = data.rack?.level     ?? data.level    ?? null;
+> const rackPos   = data.rack?.position  ?? data.position ?? null;
+> ```
+>
+> New writes from any client should always use the nested form. The Flutter mobile app and TigerScale firmware never touch these fields, so the migration is destructive (no concurrent-write conflict possible).
 
 #### Lifecycle / timestamps
 
@@ -337,9 +358,11 @@ users/alice/inventory/1D138AF60D1080
   "LinkTIPS":          "--",
   "url_img":           "https://cdn.tigertag.io/img?id=3203148594",
 
-  "rack_id":           "Yjz2BZku2X3ASyiNXyqi",
-  "level":             0,
-  "position":          5,
+  "rack": {
+    "id":              "Yjz2BZku2X3ASyiNXyqi",
+    "level":           0,
+    "position":        5
+  },
 
   "last_update":       1777578133447,
   "updated_at":        { "seconds": 1763717595, "nanoseconds": 317000000 },
@@ -354,7 +377,7 @@ This example is a **TigerTag+** spool (note the `url_img` populated, `id_product
 
 ### `users/{uid}/racks/{rackId}` — storage shelves
 
-Each rack is a 2D grid of `level × position` slots. Spools reference racks via `inventory.{spoolId}.rack_id` + `level` + `position`.
+Each rack is a 2D grid of `level × position` slots. Spools reference racks via `inventory.{spoolId}.rack.id` + `rack.level` + `rack.position` (see the [Storage location](#storage-location) section above).
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -380,7 +403,7 @@ Each rack is a 2D grid of `level × position` slots. Spools reference racks via 
 }
 ```
 
-> **For TigerScale firmware** — to display "Rack 4 · A3" on the OLED, do TWO reads: first the inventory doc to get `rack_id` + `level` + `position`, then `racks/{rack_id}` to get `name`. Cache the rack-name map on the device (5 min TTL is plenty — racks change rarely). The scale **never writes** these three fields; placement is a pure user / Studio Manager concern.
+> **For TigerScale firmware** — to display "Rack 4 · A3" on the OLED, do TWO reads: first the inventory doc to get `rack.id` + `rack.level` + `rack.position` (legacy docs may still have `rack_id` / `level` / `position` at the top level — read both as a fallback), then `racks/{rack.id}` to get `name`. Cache the rack-name map on the device (5 min TTL is plenty — racks change rarely). The scale **never writes** these fields; placement is a pure user / Studio Manager concern.
 
 ### `users/{uid}/scales/{mac}` — TigerScale heartbeats
 
@@ -637,8 +660,10 @@ NET filament weight in grams. Updated by:
 
 When updating manually, also update `last_update = Date.now()`.
 
-### `inventory.{spoolId}` `level` / `position` / `rack_id`
-1-indexed shelf row + slot column. The rack itself defines the grid (`racks.{rackId}.level` × `.position` = total slots). To convert to a human-readable position: row 1→A, 2→B, …; column stays as a number → `"A3"`, `"B5"`, etc.
+### `inventory.{spoolId}.rack`
+Storage-location group: `{ id, level, position }`. The rack itself defines the grid (`racks.{rackId}.level` × `.position` = total slots). Both `rack.level` and `rack.position` are 0-indexed in storage; convert to a human-readable position with `String.fromCharCode(65 + level)` for the row letter and `position + 1` for the column → `"A3"`, `"B5"`, etc.
+
+> **Legacy schema** — earlier clients used three top-level fields (`rack_id` / `level` / `position`). Tiger Studio Manager v1.4.7 migrates them in place to the nested form. Reads should prefer `data.rack?.{id,level,position}` and fall back to the flat keys; new writes should always use `{ rack: { id, level, position } }` or `{ rack: null }` to clear.
 
 ### `racks.{rackId}.lockedSlots`
 Stored as `"<level>:<position>"` string array (e.g. `["1:3", "1:4"]`). Locked slots block drag-in/drag-out in the UI but allow read.
@@ -859,7 +884,7 @@ Use the Firebase JS SDK or any client library with `onSnapshot()` so the UI upda
 | Operation | Path | Example payload |
 |-----------|------|-----------------|
 | Update spool weight | `users/{me}/inventory/{spoolId}` | `PATCH { weight_available: 247.3, last_update: 1735851623000 }` |
-| Place a spool on a rack | `users/{me}/inventory/{spoolId}` | `PATCH { rack_id: "rack_xyz789", level: 2, position: 3, last_update: <ms> }` |
+| Place a spool on a rack | `users/{me}/inventory/{spoolId}` | `PATCH { rack: { id: "rack_xyz789", level: 2, position: 3 }, last_update: <ms> }` (use `{ rack: null }` to remove) |
 | Soft-delete a spool | `users/{me}/inventory/{spoolId}` | `PATCH { deleted: true, deleted_at: <ms> }` |
 | Create a rack | `users/{me}/racks/{newId}` | `SET { name: "Atelier", level: 5, position: 9, order: 0, createdAt: serverTimestamp() }` |
 | TigerScale heartbeat | `users/{me}/scales/{mac}` | `SET (merge:true) { last_seen: serverTimestamp(), last_spool: "<UID>", fw_version: "1.0.3" }` |
