@@ -552,9 +552,33 @@ temps: {
 If you're a third-party integrator, adopt the same mapping verbatim; both the Studio and the mobile app already follow it, so any deviation produces inconsistencies in what the user sees across surfaces.
 
 ### Lookup tables (NOT in Firestore)
-Brand, material, type, etc. IDs resolve via static JSON files bundled with each client. Source of truth:
+
+Brand, material, type, etc. IDs resolve via lookup tables hosted **outside** Firestore. They are immutable per-user (everyone resolves the same id to the same label) and are versioned centrally by the TigerTag team.
+
+There are **two equivalent sources** for every lookup table:
+
+#### 1. Live API (recommended — always up to date)
+
+The **canonical source of truth**. Anyone can `GET` these endpoints without auth — they're public reference data. Use these directly when the client has network access; cache the response for ~24 h to keep the call count bounded.
+
+| Endpoint | Returns |
+|---|---|
+| `https://api.tigertag.io/api:tigertag/version/get/all` | TigerTag protocol versions (id ↔ label) |
+| `https://api.tigertag.io/api:tigertag/brand/get/all` | Filament brands (Bambu Lab, Polymaker, Sunlu, …) |
+| `https://api.tigertag.io/api:tigertag/material/get/all` | Materials (PLA, PETG, ABS, ASA, TPU, …) |
+| `https://api.tigertag.io/api:tigertag/aspect/get/all` | Aspect / finish (matte, silk, glossy, glow, …) |
+| `https://api.tigertag.io/api:tigertag/type/get/all` | Product type (filament, pellets, …) |
+| `https://api.tigertag.io/api:tigertag/diameter/filament/get/all` | Filament diameters (1.75, 2.85, 3.00 mm) — referenced by `inventory.{spoolId}.data1` |
+| `https://api.tigertag.io/api:tigertag/measure_unit/get/all` | Measurement units (g, kg, m, …) |
+
+Each endpoint returns a JSON array of `{ id, label, … }` objects. The TigerTag team adds new entries here as new brands / materials ship; live readers see them within seconds, snapshot readers see them after the next refresh.
+
+#### 2. GitHub-hosted static snapshots (for offline / build-time bundling)
+
+Mirrors of the live API, refreshed regularly into the desktop app's source tree. Use these when the client must work offline, or when you want to bundle the lookup tables into your binary at build time.
 
 ```
+https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_version.json
 https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_brand.json
 https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_material.json
 https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_aspect.json
@@ -564,7 +588,18 @@ https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/
 https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/container_spool/spools_filament.json
 ```
 
-Bundle these at build time, refresh weekly. They are immutable across users.
+Bundle at build time, refresh weekly via your CI. Note that `spools_filament.json` (the container/spool model registry — referenced by `inventory.{spoolId}.container_id`) is currently **only** in the GitHub snapshot; it has no live API counterpart yet.
+
+#### Recommended strategy by client type
+
+| Client | Strategy |
+|---|---|
+| **Desktop / mobile apps** with network in foreground | Hit the live API on launch, cache 24 h in app data dir, fall back to bundled snapshot when offline. |
+| **Embedded firmware** (TigerScale, etc.) with constrained network/power | Bundle the GitHub snapshot at flash-time. Refresh on each firmware update. |
+| **Server-side integrations** (Cloud Functions, HA add-ons, scripts) | Hit the live API directly. Cache in process memory, refresh every 24 h. |
+| **CI / build-time codegen** | Pull the GitHub snapshot at the moment your bundle is built; freeze the version into the binary. |
+
+Live API and static snapshot return the same shape and the same ids — choose by network/availability profile, not by data needs.
 
 ---
 
