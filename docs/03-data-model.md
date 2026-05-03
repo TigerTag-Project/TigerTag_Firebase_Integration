@@ -182,7 +182,7 @@ The doc id IS the RFID tag UID, formatted as **uppercase HEX, no separators** (e
 | `position` | number \| null | optional | Slot column index (1-indexed, 1 = leftmost) |
 | `series` / `label` / `name` / `sku` / `barcode` | string | optional | Branding fields — present on TigerTag+ encoded tags |
 | `info1` / `info2` / `info3` | boolean | optional | Refill / Recycled / Filled badges (TigerTag protocol) |
-| `data1`–`data7` | number | optional | Print-temperature data (diameter, nozzle min/max, dry temp/time, bed min/max) |
+| `data1`–`data7` | number | optional | Print-temperature data — see [§ data1-data7 fields](#data1-data7--print-parameters) below for the per-field semantics |
 | `TD` | number | optional | Filament transmission distance |
 | `LinkYoutube` / `LinkMSDS` / `LinkTDS` / `LinkROHS` / `LinkREACH` / `LinkFOOD` | string | optional | External resource URLs |
 | `url_img` | string | optional | Server-hosted spool artwork (TigerTag+ only) |
@@ -508,6 +508,48 @@ When updating manually, also update `last_update = Date.now()`.
 
 ### `racks.{rackId}.lockedSlots`
 Stored as `"<level>:<position>"` string array (e.g. `["1:3", "1:4"]`). Locked slots block drag-in/drag-out in the UI but allow read.
+
+<a id="data1-data7--print-parameters"></a>
+### `inventory.{spoolId}` `data1` – `data7` — print parameters
+
+Seven generic numeric slots that the TigerTag firmware encodes onto the RFID chip and that Studio Manager / the mobile app render as filament print parameters. They have a **fixed semantic mapping** — don't confuse the slot index with the parameter:
+
+| Field | Semantic | Type | Example value | Resolved as / displayed in UI |
+|---|---|---|---|---|
+| `data1` | **Filament diameter** — foreign key into [`id_diameter.json`](https://raw.githubusercontent.com/TigerTag-Project/TigerTag_Studio_Manager/main/data/id_diameter.json) | number (id) | `1` (= 1.75 mm) | `"1.75 mm"` after lookup |
+| `data2` | **Nozzle temperature minimum** | number (°C) | `200` | `"200–230 °C"` (joined with `data3`) |
+| `data3` | **Nozzle temperature maximum** | number (°C) | `230` | (joined with `data2`, see above) |
+| `data4` | **Drying / annealing temperature** | number (°C) | `60` | `"60 °C"` |
+| `data5` | **Drying duration** | number (hours) | `8` | `"8 h"` |
+| `data6` | **Bed temperature minimum** | number (°C) | `50` | `"50–60 °C"` (joined with `data7`) |
+| `data7` | **Bed temperature maximum** | number (°C) | `60` | (joined with `data6`, see above) |
+
+**Conventions**
+
+- All seven fields are **optional** — older RFID chips may not carry every value. Treat any missing or `0` as "not set" and fall back to the recommendation table embedded in `id_material.json` if you need a default.
+- Values are **plain numbers**, not strings — never write `"200"`, write `200`.
+- Temperatures are **°C**. Time is **hours**.
+- Only `data1` is a foreign key (into `id_diameter.json`); `data2`–`data7` are direct numeric values.
+
+**Why generic `dataN` slots and not named fields?**
+
+The RFID chip encodes a fixed binary layout that pre-dates the Firestore mirror — the seven numeric slots map 1-to-1 onto offsets `data1`…`data7` in the tag payload. Renaming them to `nozzle_temp_min` / `bed_temp_max` / etc. on the Firestore side would have meant maintaining a separate mapping table. Keeping the wire-level names lets a low-level RFID dump and the cloud doc be diffed byte-for-byte.
+
+**Studio Manager rendering** ([`renderer/inventory.js:466`](https://github.com/TigerTag-Project/TigerTag_Studio_Manager/blob/main/renderer/inventory.js))
+
+```js
+diameter: diamLabel(data.data1),       // "1.75 mm"
+temps: {
+  nozzleMin: data.data2 || null,        // 200
+  nozzleMax: data.data3 || null,        // 230
+  dryTemp:   data.data4 || null,        // 60
+  dryTime:   data.data5 || null,        // 8
+  bedMin:    data.data6 || null,        // 50
+  bedMax:    data.data7 || null,        // 60
+}
+```
+
+If you're a third-party integrator, adopt the same mapping verbatim; both the Studio and the mobile app already follow it, so any deviation produces inconsistencies in what the user sees across surfaces.
 
 ### Lookup tables (NOT in Firestore)
 Brand, material, type, etc. IDs resolve via static JSON files bundled with each client. Source of truth:
