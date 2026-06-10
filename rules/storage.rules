@@ -1,19 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────
 // TigerTag Cloud Storage Security Rules — TARGET state
 //
-// The TigerTag Firebase project uses Cloud Storage only for user-content
-// blobs that would be wasteful to base64-inline into Firestore (avatars
-// today; conceivably print-photos or larger profile media tomorrow).
-// Every Storage path mirrors a Firestore field that points to it — the
-// rule of thumb is "Storage is the blob, Firestore is the index".
+// The TigerTag Firebase project's bucket serves TWO surfaces:
 //
-// Authentication model is identical to Firestore: every read and write
-// requires `request.auth != null`. There is no public-without-auth
-// surface (so no anonymous-hotlinking of avatars from outside an
-// authenticated TigerTag client).
+//   1. Public CDN assets (filament product photos, printer thumbnails,
+//      etc.) — uploaded by Cloud Functions / Admin SDK, served by
+//      cdn.tigertag.io (which 302s to a Firebase Storage URL). These
+//      MUST be world-readable; clients consume them anonymously through
+//      `<img src="https://cdn.tigertag.io/img?id=...">`.
+//
+//   2. User-owned blobs that mirror a Firestore field (avatars today;
+//      conceivably print-photos or larger profile media tomorrow). Each
+//      such path follows the rule of thumb "Storage is the blob,
+//      Firestore is the index" — a Firestore field always points at the
+//      Storage path so we can find the blob from the user doc.
+//
+// Auth model:
+//   - READ on CDN assets is public (the catch-all `if true` below).
+//   - READ on the user-owned `avatars/{uid}` namespace is signed-in
+//     only — consistent with `userProfiles` visibility in Firestore.
+//   - WRITE on the CDN catch-all is locked to admin/Cloud Functions
+//     (deny-all from the client side; Admin SDK bypasses rules).
+//   - WRITE on `avatars/{uid}` is gated to the owner with size and
+//     MIME constraints.
 //
 // To deploy:
-//   firebase deploy --only storage:rules
+//   firebase deploy --only storage
 //
 // ─────────────────────────────────────────────────────────────────────
 
@@ -30,7 +42,7 @@ service firebase.storage {
     // ║     overwrites the previous avatar (no orphan blobs).        ║
     // ║   - File extension is NOT in the path. The mime is carried   ║
     // ║     by the object's Content-Type header (set on upload).     ║
-    // ║     Clients accept both JPEG and PNG.                        ║
+    // ║     Clients accept JPEG, PNG and WebP.                       ║
     // ║                                                              ║
     // ║ Index: userProfiles/{uid}.photoURL                           ║
     // ║   - The download URL (with its access token) is mirrored in  ║
@@ -74,16 +86,28 @@ service firebase.storage {
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 🚫 Everything else                                           ║
+    // ║ 🌐 Public CDN assets (filament photos, printer thumbnails…)  ║
     // ║                                                              ║
-    // ║ The TigerTag bucket has no other documented surface today.   ║
-    // ║ Any unmatched path falls through to this default-deny rule.  ║
-    // ║ New blob surfaces (e.g. spool photos, printer thumbnails)    ║
-    // ║ MUST be added as explicit `match` blocks above, with the     ║
-    // ║ same Firestore-index pattern.                                ║
+    // ║ Path: anything NOT matched by a rule above (e.g.             ║
+    // ║   filament/large/{id}.jpg, filament/small/{id}.jpg,          ║
+    // ║   printers/{brand}/{id}.png, etc.).                          ║
+    // ║                                                              ║
+    // ║ Served by cdn.tigertag.io which 302-redirects to a Firebase  ║
+    // ║ Storage download URL — must be world-readable for the redirect ║
+    // ║ to be usable by anonymous browser clients hitting <img src>. ║
+    // ║                                                              ║
+    // ║ Writes are denied from the client side. The catalogue is     ║
+    // ║ populated by Cloud Functions / Admin SDK, which bypass these ║
+    // ║ rules entirely.                                              ║
+    // ║                                                              ║
+    // ║ DO NOT remove this rule without first auditing every CDN-    ║
+    // ║ consuming client (Studio, mobile, third-party) — switching   ║
+    // ║ to default-deny here broke `https://cdn.tigertag.io/img?id=N`║
+    // ║ between commits 9d780cb and the fix in the same session.    ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read: if true;
+      allow write: if false;
     }
   }
 }
