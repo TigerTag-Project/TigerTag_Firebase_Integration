@@ -24,6 +24,22 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`rules/storage.rules`** — first Cloud Storage rules file for the
+  TigerTag bucket. Defines the `avatars/{uid}` surface for user custom
+  avatars (single file per user at a predictable path, 200 KB cap,
+  MIME-restricted to JPEG/PNG/WebP, read by any signed-in user to
+  support the friend-add preview flow, write by owner only). Falls
+  through to default-deny for every other path. Deploy with
+  `firebase deploy --only storage:rules`.
+- **`userProfiles.photoURL`** — new optional field on the user-profile
+  doc, mirroring the Cloud Storage download URL of the user's custom
+  avatar. `null` (or absent) means the user hasn't uploaded a picture
+  and clients should render the legacy colour-circle + initials
+  fallback. The token in the URL rotates on every upload, which gives
+  free cache-busting for clients that already cached an older URL.
+  Documented in §`userProfiles/{uid}` of `docs/03-data-model.md`
+  including a new "Custom avatars (Storage)" sub-section that walks
+  through the Storage/Firestore split and the fallback contract.
 - **`docs/clients/tigerscale.md`** — full TigerScale ESP32 firmware contract.
   Covers Firebase Auth flow (idToken refresh from NVS-stored refreshToken),
   the two write paths (`scales/{mac}` heartbeat every 30 s, `inventory/{spoolId}`

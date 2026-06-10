@@ -103,8 +103,9 @@ Public-facing identity card. Anyone signed in can read this; only the owner can 
 | `publicKey` | string | ✅ | Same code as the `publicKeys/{key}` doc id (denormalised so callers don't need a second read) |
 | `displayName` | string | ✅ | User's chosen pseudo |
 | `isPublic` | boolean | ✅ | If `true`, ANY signed-in user can read this user's `inventory` (no friendship needed) |
-| `color` | string \| null | ⚠️ | Hex avatar colour, e.g. `#FF7A18` |
+| `color` | string \| null | ⚠️ | Hex avatar colour, e.g. `#FF7A18`. Used as the background of the colour-circle fallback avatar when `photoURL` is null |
 | `color_r` / `color_g` / `color_b` | number | ⚠️ | Alternate RGB-component form (some clients write one, some the other; always check both) |
+| `photoURL` | string \| null | ⚠️ | Cloud Storage download URL of the user's custom avatar. Set when the user uploaded a picture, null otherwise. Points at `gs://{bucket}/avatars/{uid}` — see [Custom avatars](#custom-avatars-storage) below. Clients render `<img src="${photoURL}">` when present, fall back to the `color` circle with initials when null. |
 
 **Example doc** — `userProfiles/alice123abcDEF`:
 
@@ -113,9 +114,22 @@ Public-facing identity card. Anyone signed in can read this; only the owner can 
   "publicKey": "4X7-K3M",
   "displayName": "Alice",
   "isPublic": false,
-  "color": "#FF7A18"
+  "color": "#FF7A18",
+  "photoURL": "https://firebasestorage.googleapis.com/v0/b/tigertag-cdn.firebasestorage.app/o/avatars%2Falice123abcDEF?alt=media&token=..."
 }
 ```
+
+#### Custom avatars (Storage)
+
+A user can replace their colour-circle avatar with a custom picture. The picture lives in Cloud Storage at the predictable path `gs://{bucket}/avatars/{uid}` — single file per user, no extension in the path (the MIME is carried by the object's `Content-Type` metadata, JPEG or PNG depending on whether the source has an alpha channel).
+
+The download URL with its access token is mirrored into `userProfiles/{uid}.photoURL`. The token rotates on every upload, which acts as natural cache-busting for any client that already cached the old URL.
+
+Visibility is `read: signed-in any` — the same level as `userProfiles` itself — so the "preview a friend by code before sending the request" flow can show their avatar without a prior friendship. Write is owner-only.
+
+Upload constraints enforced by Storage rules: max 200 KB, MIME must be `image/jpeg` | `image/png` | `image/webp` (no SVG, no animated GIF). See `rules/storage.rules` for the full contract.
+
+When `photoURL` is null (or the field is missing), render the legacy colour circle with the user's initials. Don't construct the Storage URL from the uid and try to load it directly — that would 404 for users who haven't set a picture. Always gate on the `photoURL` field.
 
 ### `users/{uid}` (root document)
 

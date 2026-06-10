@@ -1,0 +1,89 @@
+// ─────────────────────────────────────────────────────────────────────
+// TigerTag Cloud Storage Security Rules — TARGET state
+//
+// The TigerTag Firebase project uses Cloud Storage only for user-content
+// blobs that would be wasteful to base64-inline into Firestore (avatars
+// today; conceivably print-photos or larger profile media tomorrow).
+// Every Storage path mirrors a Firestore field that points to it — the
+// rule of thumb is "Storage is the blob, Firestore is the index".
+//
+// Authentication model is identical to Firestore: every read and write
+// requires `request.auth != null`. There is no public-without-auth
+// surface (so no anonymous-hotlinking of avatars from outside an
+// authenticated TigerTag client).
+//
+// To deploy:
+//   firebase deploy --only storage:rules
+//
+// ─────────────────────────────────────────────────────────────────────
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 👤 User avatars                                              ║
+    // ║                                                              ║
+    // ║ Path: avatars/{uid}                                          ║
+    // ║   - Single file per user, predictable path → re-uploading    ║
+    // ║     overwrites the previous avatar (no orphan blobs).        ║
+    // ║   - File extension is NOT in the path. The mime is carried   ║
+    // ║     by the object's Content-Type header (set on upload).     ║
+    // ║     Clients accept both JPEG and PNG.                        ║
+    // ║                                                              ║
+    // ║ Index: userProfiles/{uid}.photoURL                           ║
+    // ║   - The download URL (with its access token) is mirrored in  ║
+    // ║     the user's userProfile doc. The token rotates on every   ║
+    // ║     upload, which acts as natural cache-busting for clients  ║
+    // ║     that already hold an older URL.                          ║
+    // ║   - Absence of photoURL → client falls back to the colour    ║
+    // ║     circle + initials avatar.                                ║
+    // ║                                                              ║
+    // ║ Visibility:                                                  ║
+    // ║   - Read by any signed-in user. This intentionally matches   ║
+    // ║     the Firestore visibility of userProfiles itself — the    ║
+    // ║     friend-add preview flow (resolve XXX-XXX code → render   ║
+    // ║     pseudo + avatar BEFORE sending the request) depends on   ║
+    // ║     the avatar being readable without a prior friendship.    ║
+    // ║   - Write by owner only.                                     ║
+    // ║                                                              ║
+    // ║ Upload constraints (enforced server-side):                   ║
+    // ║   - Max 200 KB. Typical client-side-resized 512×512 avatars  ║
+    // ║     land at 15–50 KB JPEG / 80–180 KB PNG-with-alpha — the   ║
+    // ║     200 KB cap rejects raw 5 MB phone photos and forces the  ║
+    // ║     client to do the resize.                                 ║
+    // ║   - Content-Type must be image/jpeg, image/png, or image/    ║
+    // ║     webp. SVG, GIF (animated), TIFF and BMP are blocked      ║
+    // ║     deliberately — SVG can carry script, GIF is a            ║
+    // ║     compositor cost we don't want, the others have no use    ║
+    // ║     case for avatars.                                        ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /avatars/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == uid
+                   && request.resource.size < 200 * 1024
+                   && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      // Deleting an avatar is the owner's right (revert to colour
+      // circle fallback). The client should also clear userProfiles
+      // .photoURL in the same operation, but the rule here only
+      // gates the blob.
+      allow delete: if request.auth != null
+                    && request.auth.uid == uid;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🚫 Everything else                                           ║
+    // ║                                                              ║
+    // ║ The TigerTag bucket has no other documented surface today.   ║
+    // ║ Any unmatched path falls through to this default-deny rule.  ║
+    // ║ New blob surfaces (e.g. spool photos, printer thumbnails)    ║
+    // ║ MUST be added as explicit `match` blocks above, with the     ║
+    // ║ same Firestore-index pattern.                                ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
