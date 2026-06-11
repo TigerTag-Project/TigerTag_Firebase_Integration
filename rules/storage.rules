@@ -58,8 +58,11 @@ service firebase.storage {
     // ║   - Write by owner only.                                     ║
     // ║                                                              ║
     // ║ Upload constraints (enforced server-side):                   ║
-    // ║   - Max 200 KB. Typical client-side-resized 512×512 avatars  ║
-    // ║     land at 15–50 KB JPEG / 80–180 KB PNG-with-alpha.        ║
+    // ║   - Max 500 KB. Typical client-side-resized 512×512 avatars  ║
+    // ║     land at 15–50 KB JPEG / 60–180 KB PNG-with-alpha. The    ║
+    // ║     500 KB ceiling leaves headroom for detailed transparent  ║
+    // ║     PNGs (illustrations, complex memojis) while still         ║
+    // ║     rejecting raw multi-megabyte phone photos uploaded raw.  ║
     // ║   - Content-Type must be image/jpeg, image/png, or image/    ║
     // ║     webp. SVG / GIF / TIFF / BMP blocked deliberately.       ║
     // ╚══════════════════════════════════════════════════════════════╝
@@ -67,7 +70,7 @@ service firebase.storage {
       allow read: if request.auth != null;
       allow write: if request.auth != null
                    && request.auth.uid == uid
-                   && request.resource.size < 200 * 1024
+                   && request.resource.size < 500 * 1024
                    && request.resource.contentType.matches('image/(jpeg|png|webp)');
       allow delete: if request.auth != null
                     && request.auth.uid == uid;

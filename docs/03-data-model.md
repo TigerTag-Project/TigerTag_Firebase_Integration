@@ -127,7 +127,7 @@ The download URL with its access token is mirrored into `userProfiles/{uid}.phot
 
 Visibility is `read: signed-in any` — the same level as `userProfiles` itself — so the "preview a friend by code before sending the request" flow can show their avatar without a prior friendship. Write is owner-only.
 
-Upload constraints enforced by Storage rules: max 200 KB, MIME must be `image/jpeg` | `image/png` | `image/webp` (no SVG, no animated GIF). See `rules/storage.rules` for the full contract.
+Upload constraints enforced by Storage rules: max 500 KB, MIME must be `image/jpeg` | `image/png` | `image/webp` (no SVG, no animated GIF). 500 KB is plenty for 512×512 client-side-resized avatars (JPEG photos ~30–50 KB, PNG memojis 60–180 KB, with headroom for detailed transparent illustrations). See `rules/storage.rules` for the full contract.
 
 When `photoURL` is null (or the field is missing), render the legacy colour circle with the user's initials. Don't construct the Storage URL from the uid and try to load it directly — that would 404 for users who haven't set a picture. Always gate on the `photoURL` field.
 

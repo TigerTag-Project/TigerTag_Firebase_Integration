@@ -29,7 +29,7 @@ cycles in the wild.
   `media/`, `filament/`, `resin/`, `files/`; explicit deny for
   `uploads/`; default-deny catch-all) and adds the new `avatars/{uid}`
   surface for user custom avatars (single file per user at a
-  predictable path, 200 KB cap, MIME-restricted to JPEG/PNG/WebP,
+  predictable path, 500 KB cap, MIME-restricted to JPEG/PNG/WebP,
   read by any signed-in user to support the friend-add preview flow,
   write by owner only). Deploy with `firebase deploy --only storage`.
 - **`rules/historical/storage-2025-10-23.rules`** — verbatim snapshot
