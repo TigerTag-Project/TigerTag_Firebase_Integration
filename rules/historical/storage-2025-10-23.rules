@@ -1,0 +1,63 @@
+// ─────────────────────────────────────────────────────────────────────
+// HISTORICAL SNAPSHOT — DO NOT DEPLOY
+//
+// Source: Firebase Rules API (firebaserules.googleapis.com)
+// Ruleset: 245321d6-0e41-4ed0-8a19-390e1f43df43
+// Service: firebase.storage
+// Deployed: 2026-06-10 23:51:07 UTC — first version stored in repo
+// Originally deployed: 2025-10-23 19:37:20 UTC
+//
+// This is the LAST production storage ruleset before the rules file
+// was ever introduced into this repo (the bucket was live with rules
+// administered through Firebase Console for ~9 months without being
+// versioned). Kept here as a reference and audit trail so we can
+// always compare future rule changes against the pre-repo baseline.
+//
+// To recover historical rules for any deployed Firebase service:
+//   - Get an OAuth token: cat ~/.config/configstore/firebase-tools.json | jq -r .tokens.access_token
+//   - List rulesets:      curl -H "Authorization: Bearer $TOKEN" \
+//                           "https://firebaserules.googleapis.com/v1/projects/{project}/rulesets?pageSize=100"
+//   - Fetch a ruleset:    curl -H "Authorization: Bearer $TOKEN" \
+//                           "https://firebaserules.googleapis.com/v1/{ruleset.name}"
+// ─────────────────────────────────────────────────────────────────────
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ✅ Lecture publique des médias générés par UploadMedia
+    // Chemin: media/{folder}/{mediaType}/{id}.{ext}
+    match /media/{folder}/{mediaType}/{fileId} {
+      allow read: if true;     // lecture publique
+      allow write: if false;   // écriture client interdite
+    }
+
+    // ✅ Lecture publique des images filament
+    match /filament/{size}/{fileId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ✅ Lecture publique des images resin
+    match /resin/{size}/{fileId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // 🚫 Interdit l’accès direct aux uploads temporaires
+    match /uploads/{productType}/{productId}/{file} {
+      allow read, write: if false;
+    }
+
+    // 🚫 Tout le reste bloqué par défaut
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // ✅ Lecture publique des files
+    match /files/{brandId}/{fileName=**} {
+  	allow read: if true;  // rendre les fichiers files/ publiques
+  	allow write: if false;
+		}
+  }
+}

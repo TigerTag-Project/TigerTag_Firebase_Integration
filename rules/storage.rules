@@ -1,28 +1,25 @@
 // ─────────────────────────────────────────────────────────────────────
-// TigerTag Cloud Storage Security Rules — TARGET state
+// TigerTag Cloud Storage Security Rules
 //
-// The TigerTag Firebase project's bucket serves TWO surfaces:
+// Strict allowlist model: every public-read path is enumerated below.
+// Anything not matched falls through to the catch-all DEFAULT-DENY
+// block at the bottom. This is the inverse of "open by default" and
+// is what the previous production rules already enforced (ruleset
+// 245321d6, deployed 2025-10-23) — never relax this without first
+// auditing every consuming client.
 //
-//   1. Public CDN assets (filament product photos, printer thumbnails,
-//      etc.) — uploaded by Cloud Functions / Admin SDK, served by
-//      cdn.tigertag.io (which 302s to a Firebase Storage URL). These
-//      MUST be world-readable; clients consume them anonymously through
-//      `<img src="https://cdn.tigertag.io/img?id=...">`.
+// Two kinds of paths:
 //
-//   2. User-owned blobs that mirror a Firestore field (avatars today;
-//      conceivably print-photos or larger profile media tomorrow). Each
-//      such path follows the rule of thumb "Storage is the blob,
-//      Firestore is the index" — a Firestore field always points at the
-//      Storage path so we can find the blob from the user doc.
+//   1. Public CDN assets (filament/, resin/, media/, files/) —
+//      world-readable, no client write. Populated by Cloud Functions /
+//      Admin SDK, served by cdn.tigertag.io which 302-redirects to a
+//      Firebase Storage URL.
 //
-// Auth model:
-//   - READ on CDN assets is public (the catch-all `if true` below).
-//   - READ on the user-owned `avatars/{uid}` namespace is signed-in
-//     only — consistent with `userProfiles` visibility in Firestore.
-//   - WRITE on the CDN catch-all is locked to admin/Cloud Functions
-//     (deny-all from the client side; Admin SDK bypasses rules).
-//   - WRITE on `avatars/{uid}` is gated to the owner with size and
-//     MIME constraints.
+//   2. User-owned blobs (avatars/) — owner-write, signed-in read.
+//      Mirror a Firestore field that points at the blob.
+//
+// And one explicitly-denied path (uploads/) for temporary admin
+// staging buffers that must NEVER leak.
 //
 // To deploy:
 //   firebase deploy --only storage
@@ -53,23 +50,18 @@ service firebase.storage {
     // ║     circle + initials avatar.                                ║
     // ║                                                              ║
     // ║ Visibility:                                                  ║
-    // ║   - Read by any signed-in user. This intentionally matches   ║
-    // ║     the Firestore visibility of userProfiles itself — the    ║
-    // ║     friend-add preview flow (resolve XXX-XXX code → render   ║
-    // ║     pseudo + avatar BEFORE sending the request) depends on   ║
-    // ║     the avatar being readable without a prior friendship.    ║
+    // ║   - Read by any signed-in user. Matches the Firestore        ║
+    // ║     visibility of userProfiles itself — the friend-add       ║
+    // ║     preview flow (resolve XXX-XXX code → render pseudo +     ║
+    // ║     avatar BEFORE sending the request) depends on the avatar ║
+    // ║     being readable without a prior friendship.               ║
     // ║   - Write by owner only.                                     ║
     // ║                                                              ║
     // ║ Upload constraints (enforced server-side):                   ║
     // ║   - Max 200 KB. Typical client-side-resized 512×512 avatars  ║
-    // ║     land at 15–50 KB JPEG / 80–180 KB PNG-with-alpha — the   ║
-    // ║     200 KB cap rejects raw 5 MB phone photos and forces the  ║
-    // ║     client to do the resize.                                 ║
+    // ║     land at 15–50 KB JPEG / 80–180 KB PNG-with-alpha.        ║
     // ║   - Content-Type must be image/jpeg, image/png, or image/    ║
-    // ║     webp. SVG, GIF (animated), TIFF and BMP are blocked      ║
-    // ║     deliberately — SVG can carry script, GIF is a            ║
-    // ║     compositor cost we don't want, the others have no use    ║
-    // ║     case for avatars.                                        ║
+    // ║     webp. SVG / GIF / TIFF / BMP blocked deliberately.       ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /avatars/{uid} {
       allow read: if request.auth != null;
@@ -77,37 +69,77 @@ service firebase.storage {
                    && request.auth.uid == uid
                    && request.resource.size < 200 * 1024
                    && request.resource.contentType.matches('image/(jpeg|png|webp)');
-      // Deleting an avatar is the owner's right (revert to colour
-      // circle fallback). The client should also clear userProfiles
-      // .photoURL in the same operation, but the rule here only
-      // gates the blob.
       allow delete: if request.auth != null
                     && request.auth.uid == uid;
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
-    // ║ 🌐 Public CDN assets (filament photos, printer thumbnails…)  ║
-    // ║                                                              ║
-    // ║ Path: anything NOT matched by a rule above (e.g.             ║
-    // ║   filament/large/{id}.jpg, filament/small/{id}.jpg,          ║
-    // ║   printers/{brand}/{id}.png, etc.).                          ║
-    // ║                                                              ║
-    // ║ Served by cdn.tigertag.io which 302-redirects to a Firebase  ║
-    // ║ Storage download URL — must be world-readable for the redirect ║
-    // ║ to be usable by anonymous browser clients hitting <img src>. ║
-    // ║                                                              ║
-    // ║ Writes are denied from the client side. The catalogue is     ║
-    // ║ populated by Cloud Functions / Admin SDK, which bypass these ║
-    // ║ rules entirely.                                              ║
-    // ║                                                              ║
-    // ║ DO NOT remove this rule without first auditing every CDN-    ║
-    // ║ consuming client (Studio, mobile, third-party) — switching   ║
-    // ║ to default-deny here broke `https://cdn.tigertag.io/img?id=N`║
-    // ║ between commits 9d780cb and the fix in the same session.    ║
+    // ║ 🌐 Public CDN — media/ (UploadMedia outputs)                 ║
+    // ║ Path: media/{folder}/{mediaType}/{fileId}.{ext}              ║
     // ╚══════════════════════════════════════════════════════════════╝
-    match /{allPaths=**} {
+    match /media/{folder}/{mediaType}/{fileId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🌐 Public CDN — filament product images                      ║
+    // ║ Path: filament/{size}/{fileId} (e.g. filament/large/10.jpg)  ║
+    // ║ Served by https://cdn.tigertag.io/img?id={n}                 ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /filament/{size}/{fileId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🌐 Public CDN — resin product images                         ║
+    // ║ Path: resin/{size}/{fileId}                                  ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /resin/{size}/{fileId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🌐 Public CDN — brand-scoped files (PDFs, etc.)              ║
+    // ║ Path: files/{brandId}/{path...}                              ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /files/{brandId}/{fileName=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🚫 Temporary admin upload buffers — STRICTLY denied          ║
+    // ║                                                              ║
+    // ║ Path: uploads/{productType}/{productId}/{file}               ║
+    // ║                                                              ║
+    // ║ The admin pipeline lands raw uploads here before processing  ║
+    // ║ (resize / dedupe / move to filament/resin/media). Clients    ║
+    // ║ must NEVER read or write this surface — Admin SDK uses it    ║
+    // ║ via privileged bypass. Denying explicitly (vs. relying on    ║
+    // ║ the catch-all) makes the intent loud in the rules file.      ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /uploads/{productType}/{productId}/{file} {
+      allow read, write: if false;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🛡️  Default deny — everything else                          ║
+    // ║                                                              ║
+    // ║ Any path not matched above falls here and is fully denied.   ║
+    // ║ To open a new surface, add an explicit `match` block above.  ║
+    // ║                                                              ║
+    // ║ This restores the same default-deny posture as the previous  ║
+    // ║ production ruleset (245321d6 / 2025-10-23). It was briefly   ║
+    // ║ relaxed to `read: if true` between commits 9d780cb and       ║
+    // ║ c76b643 to fix a CDN regression caused by an incorrect       ║
+    // ║ catch-all in the very first storage.rules deploy — see the   ║
+    // ║ CHANGELOG entry for the post-mortem.                          ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
