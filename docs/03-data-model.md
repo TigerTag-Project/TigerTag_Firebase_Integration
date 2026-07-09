@@ -419,6 +419,31 @@ Each rack is a 2D grid of `level × position` slots. Spools reference racks via 
 
 > **For TigerScale firmware** — to display "Rack 4 · A3" on the OLED, do TWO reads: first the inventory doc to get `rack.id` + `rack.level` + `rack.position` (legacy docs may still have `rack_id` / `level` / `position` at the top level — read both as a fallback), then `racks/{rack.id}` to get `name`. Cache the rack-name map on the device (5 min TTL is plenty — racks change rarely). The scale **never writes** these fields; placement is a pure user / Studio Manager concern.
 
+### `users/{uid}/products/{keyHash}` — product identities (favorites, buy links, prices)
+
+A Tiger Studio Manager feature. **One document per PRODUCT IDENTITY**, not per spool: the doc id is a `keyHash` (hash of the product signature — brand + material + colour + aspect, or the TigerTag+ product id), so the info applies to every identical spool and survives the deletion of the last physical spool. Used for the "Products & Favorites" and reorder views, and to share favorites between friends.
+
+**Read: owner / public inventory / accepted friend** (same policy as `inventory` and `racks`). **Write: owner only.** So a friend reads this collection **directly** to see the owner's favorites, buy link, price, and full material info — always in sync, no duplicated collection.
+
+| Field | Type | Description |
+|---|---|---|
+| `key` | string | The product signature the `keyHash` is derived from (e.g. `"diy:Rosa3D\|PLA\|…"` or `"tt:<id>"`) |
+| `favorite` | boolean | ★ favorite |
+| `liked` | boolean | ❤ love (implies favorite) |
+| `label` | map | `{ brand, series, material, colorName, colorHex, aspect, imgUrl }` — for display without a live spool |
+| `cloudSeed` | map | Sanitised material data (colours, temps, id_material, diameter, sku/ean, product id — **never** uid / weight / rack / location) so a card can render full material info with no spool |
+| `buyUrl` | string | Shopping link |
+| `buyPriceHt` | number | Pre-tax unit price (TTC derived at display from `users/{uid}.vatCountry`) |
+| `minStockSpools` | number | Reorder threshold (alert when stock drops below) |
+| `onOrder` / `orderQty` | number | Reorder tracking |
+| `sku` / `ean` | string | Manually-typed codes (the chip's own SKU/EAN come from `inventory`) |
+| `tags` | string[] | User labels |
+| `importedFrom` | map | `{ uid, name }` — set when the product was favorited from a friend's inventory (provenance) |
+| `note` | string | ⚠️ Personal note. **Included here and therefore friend-readable** — assumed product tradeoff to avoid a duplicated collection; the apps never surface a friend's note. Don't display it for anyone but the owner. |
+| `updatedAt` | timestamp | Last write |
+
+> **Note privacy caveat.** Because Firestore reads are all-or-nothing per document, opening `products` to friends also exposes the `note`. Clients MUST NOT surface a friend's `note`. (Deprecated: an older `users/{uid}/productShares/{keyHash}` projection is no longer written.)
+
 ### `users/{uid}/scales/{mac}` — TigerScale heartbeats
 
 The doc id is the ESP32's WiFi MAC address (lowercase hex, no separators, e.g. `8c4f0023a1bc`).

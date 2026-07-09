@@ -176,6 +176,37 @@ service cloud.firestore {
           && request.query.limit <= 50;
       }
 
+      // ── Products (per product-IDENTITY: favorites, buy link, price…) ─
+      // Tiger Studio "Products & Favorites" feature. One doc per product
+      // identity (doc id = keyHash of the product signature, NOT a spoolId),
+      // so the info applies to every identical spool and survives a spool's
+      // deletion. Read: same policy as inventory / racks (owner / public /
+      // friends) — friends read this directly to see each other's favorites,
+      // buy link + price, and full material info (`cloudSeed`). Write: owner.
+      // NOTE: the `note` field ("un mot pour ton futur toi") lives here and is
+      // therefore friend-readable — assumed product tradeoff to avoid a
+      // duplicated collection; the apps never surface a friend's note.
+      // Anti-flood guard: `list` capped at 200 docs per request.
+      match /products/{keyHash} {
+        allow write: if isOwner();
+        allow get:   if isOwner()
+          || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+          || (
+            request.auth != null
+            && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+          );
+        allow list:  if (
+            isOwner()
+            || get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+            || (
+              request.auth != null
+              && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+            )
+          )
+          && request.query.limit != null
+          && request.query.limit <= 200;
+      }
+
       // ── Scales (TigerScale heartbeats) ────────────────────────────
       // Private — the ESP32 scale authenticates as the owner and writes
       // its own heartbeat. No third-party access.

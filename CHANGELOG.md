@@ -24,6 +24,17 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`users/{uid}/products/{keyHash}` — now friend-readable.** Documented the
+  Tiger Studio "Products & Favorites" collection (one doc per product IDENTITY,
+  doc id = `keyHash`) in `rules/firestore.rules` (TARGET form, `list` capped at
+  200) and `docs/03-data-model.md`. **Read: owner / public / accepted friend**
+  (same policy as `inventory` & `racks`); **write: owner**. Lets friends read
+  each other's favorites, buy links, prices and full material info (`cloudSeed`)
+  directly — no duplicated collection.
+  - ⚠️ **Privacy caveat:** the personal `note` field lives in this doc and is
+    therefore friend-readable. Clients MUST NOT surface a friend's `note`.
+  - The older `users/{uid}/productShares/{keyHash}` projection is **deprecated**
+    (no longer written; superseded by the direct `products` read).
 - **`rules/storage.rules`** — first Cloud Storage rules file versioned
   in this repo. Mirrors the previous production ruleset (allowlist for
   `media/`, `filament/`, `resin/`, `files/`; explicit deny for
