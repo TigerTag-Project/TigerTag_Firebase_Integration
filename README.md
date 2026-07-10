@@ -187,6 +187,17 @@ deployed by the TigerTag team after review.
 
 ## License
 
-Documentation & examples — MIT.
-The TigerTag service itself is operated by the TigerTag team and not
-covered by this license.
+**Copy the examples. Ship them. You owe us nothing.**
+
+- **Documentation** (`README.md`, `docs/**`, `examples/**`) — [CC-BY-4.0](LICENSE)
+- **Code** (`rules/*.rules` and every snippet in these pages) — [Apache-2.0](LICENSES/Apache-2.0.txt),
+  attribution waived for snippets pasted into your own project
+
+Full detail, and what is *not* covered (the name, the logo, the service, the TigerTag+ signature):
+see [`LICENSING.md`](LICENSING.md).
+
+The **TigerTag protocol** is CC-BY-4.0 with an irrevocable, royalty-free right to implement it —
+see [TigerTag-RFID-Guide](https://github.com/TigerTag-Project/TigerTag-RFID-Guide).
+
+The TigerTag service itself (the Firebase project, the API and the catalogue) is operated by
+TigerTag Corp and is not covered by these licences.
