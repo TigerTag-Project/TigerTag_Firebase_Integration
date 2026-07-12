@@ -207,6 +207,31 @@ service cloud.firestore {
           && request.query.limit <= 200;
       }
 
+      // ── Shareable wishlists ───────────────────────────────────────
+      // Each list stores product-identity hashes (see `products`) in
+      // `itemKeys`; array order IS the display order. Per-list privacy
+      // via the `visibility` field:
+      //   • "private"          → owner only.
+      //   • "public"           → any signed-in user.
+      //   • "friends" / absent → friends + public-inventory profiles (default).
+      match /lists/{listId} {
+        allow read: if isOwner()
+          || (request.auth != null && resource.data.visibility == 'public')
+          || (
+            resource.data.visibility != 'private'
+            && (
+              get(/databases/$(database)/documents/userProfiles/$(userId)).data.isPublic == true
+              || (
+                request.auth != null
+                && exists(/databases/$(database)/documents/users/$(userId)/friends/$(request.auth.uid))
+              )
+            )
+          );
+        allow delete: if isOwner();
+        allow create, update: if isOwner()
+          && request.resource.data.keys().hasOnly(["name", "emoji", "occasion", "visibility", "itemKeys", "createdAt", "updatedAt", "sortRank"]);
+      }
+
       // ── Scales (TigerScale heartbeats) ────────────────────────────
       // Private — the ESP32 scale authenticates as the owner and writes
       // its own heartbeat. No third-party access.

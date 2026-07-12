@@ -444,6 +444,30 @@ A Tiger Studio Manager feature. **One document per PRODUCT IDENTITY**, not per s
 
 > **Note privacy caveat.** Because Firestore reads are all-or-nothing per document, opening `products` to friends also exposes the `note`. Clients MUST NOT surface a friend's `note`. (Deprecated: an older `users/{uid}/productShares/{keyHash}` projection is no longer written.)
 
+### `users/{uid}/lists/{listId}` — shareable wishlists
+
+A Tiger Studio Manager feature. **One document per named list** (Firestore auto-id). A list holds `keyHash` references into `products` (see above) — never a copy — so item prices, buy links and images stay live. The array order in `itemKeys` **is** the display order (drag-to-reorder rewrites the array).
+
+**Write: owner only. Read depends on the per-list `visibility` field:**
+
+| `visibility` | Who can read |
+|---|---|
+| `"private"` | Owner only |
+| `"friends"` (or field absent) | Owner + accepted friends + profiles flagged `userProfiles.isPublic` — same policy as `inventory` / `products` |
+| `"public"` | Any signed-in user |
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | List name |
+| `emoji` | string | Optional emoji prefix |
+| `occasion` | string | Optional free label (e.g. "Birthday", "Christmas") |
+| `visibility` | string | `"private"` \| `"friends"` \| `"public"` — see the read table above (absent = `"friends"`) |
+| `itemKeys` | string[] | `products` `keyHash`es; **array order = display order** |
+| `sortRank` | number | Order of the list among the user's lists |
+| `createdAt` / `updatedAt` | timestamp | Lifecycle |
+
+> To resolve a list for display, read `itemKeys` then fetch each `users/{uid}/products/{keyHash}` (or reuse an already-loaded `products` map). The list stores no product data of its own.
+
 ### `users/{uid}/scales/{mac}` — TigerScale heartbeats
 
 The doc id is the ESP32's WiFi MAC address (lowercase hex, no separators, e.g. `8c4f0023a1bc`).
