@@ -144,6 +144,7 @@ A denormalised, **world-readable** snapshot of a `users/{uid}/lists/{listId}` it
 | `ownerCode` | string | Owner's `publicKey` (`"XXX-XXX"`) — used by the "sign in to follow" CTA to start the add-friend flow |
 | `listId` | string | Back-reference to `users/{ownerUid}/lists/{listId}` |
 | `name` / `emoji` / `occasion` | string | List display fields |
+| `message` | string | Optional owner message to viewers (from the list's `message`) — safe to display. |
 | `items` | array | `[{ keyHash, brand, material, colorName, colorHex, imgUrl, priceHt, buyUrl }]` — display order preserved. **No personal `note`, no uid-scoped data.** |
 | `updatedAt` | timestamp | Last snapshot write |
 
@@ -479,6 +480,7 @@ A Tiger Studio Manager feature. **One document per named list** (Firestore auto-
 | `name` | string | List name |
 | `emoji` | string | Optional emoji prefix |
 | `occasion` | string | Optional free label (e.g. "Birthday", "Christmas") |
+| `message` | string | Optional free-text note from the owner to whoever views the list (≤ 500 chars). Shown to friends + on the public page. |
 | `visibility` | string | `"private"` \| `"friends"` \| `"public"` — see the read table above (absent = `"friends"`) |
 | `itemKeys` | string[] | `products` `keyHash`es; **array order = display order** |
 | `sortRank` | number | Order of the list among the user's lists |
