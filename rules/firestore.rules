@@ -60,6 +60,27 @@ service cloud.firestore {
     }
 
     // ╔══════════════════════════════════════════════════════════════╗
+    // ║ 🔗 Public list snapshots — world-readable                    ║
+    // ╚══════════════════════════════════════════════════════════════╝
+    // A dedicated, denormalised snapshot of a list its owner set to "public".
+    // WORLD-READABLE (no auth) — the only entry point for a visitor WITHOUT an
+    // account (public web page). Carries ONLY display fields + the owner's
+    // publicKey (`ownerCode`, for the "sign in to follow" CTA); it never
+    // contains the personal `note` or uid-scoped data. Write: owner only,
+    // verified via `ownerUid == auth.uid` + a strict field whitelist.
+    match /publicLists/{token} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+             "ownerUid", "ownerName", "ownerCode", "listId",
+             "name", "emoji", "occasion", "items", "updatedAt"
+           ]);
+      allow delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ╔══════════════════════════════════════════════════════════════╗
     // ║ 👤 Private user document (1 doc = 1 user)                    ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /users/{userId} {
@@ -229,7 +250,7 @@ service cloud.firestore {
           );
         allow delete: if isOwner();
         allow create, update: if isOwner()
-          && request.resource.data.keys().hasOnly(["name", "emoji", "occasion", "visibility", "itemKeys", "createdAt", "updatedAt", "sortRank"]);
+          && request.resource.data.keys().hasOnly(["name", "emoji", "occasion", "visibility", "itemKeys", "createdAt", "updatedAt", "sortRank", "publicToken"]);
       }
 
       // ── Scales (TigerScale heartbeats) ────────────────────────────

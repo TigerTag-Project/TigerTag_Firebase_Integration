@@ -131,6 +131,24 @@ Upload constraints enforced by Storage rules: max 500 KB, MIME must be `image/jp
 
 When `photoURL` is null (or the field is missing), render the legacy colour circle with the user's initials. Don't construct the Storage URL from the uid and try to load it directly — that would 404 for users who haven't set a picture. Always gate on the `photoURL` field.
 
+### `publicLists/{token}` — public list snapshots
+
+A denormalised, **world-readable** snapshot of a `users/{uid}/lists/{listId}` its owner set to `visibility == "public"`. It is the ONLY entry point for a viewer **without an account** (a public web page): `read: if true` — no auth. The owner's app writes/updates it whenever the public list changes and deletes it when the list leaves "public"; the list's `publicToken` field holds this doc id.
+
+**Write: owner only** — verified via `ownerUid == auth.uid` + a strict `hasOnly` whitelist.
+
+| Field | Type | Description |
+|---|---|---|
+| `ownerUid` | string | The list owner's uid (also the write guard) |
+| `ownerName` | string | Owner display name (pseudo) |
+| `ownerCode` | string | Owner's `publicKey` (`"XXX-XXX"`) — used by the "sign in to follow" CTA to start the add-friend flow |
+| `listId` | string | Back-reference to `users/{ownerUid}/lists/{listId}` |
+| `name` / `emoji` / `occasion` | string | List display fields |
+| `items` | array | `[{ keyHash, brand, material, colorName, colorHex, imgUrl, priceHt, buyUrl }]` — display order preserved. **No personal `note`, no uid-scoped data.** |
+| `updatedAt` | timestamp | Last snapshot write |
+
+> ⚠️ This is the deliberate exception to "everything is gated": public list snapshots are world-readable by design. They carry only safe display fields — never the owner's `note` or any private data. Render `items` as-is; do not try to read `users/{uid}/products` from an unauthenticated context (that collection is not world-readable).
+
 ### `users/{uid}` (root document)
 
 Owner-only. The fields directly on this doc are user-level metadata; everything bulk lives in sub-collections (covered in the next section).
@@ -464,9 +482,10 @@ A Tiger Studio Manager feature. **One document per named list** (Firestore auto-
 | `visibility` | string | `"private"` \| `"friends"` \| `"public"` — see the read table above (absent = `"friends"`) |
 | `itemKeys` | string[] | `products` `keyHash`es; **array order = display order** |
 | `sortRank` | number | Order of the list among the user's lists |
+| `publicToken` | string | Present only when `visibility == "public"` — the id of the world-readable [`publicLists/{token}`](#publicliststoken--public-list-snapshots) snapshot for this list |
 | `createdAt` / `updatedAt` | timestamp | Lifecycle |
 
-> To resolve a list for display, read `itemKeys` then fetch each `users/{uid}/products/{keyHash}` (or reuse an already-loaded `products` map). The list stores no product data of its own.
+> To resolve a list for display, read `itemKeys` then fetch each `users/{uid}/products/{keyHash}` (or reuse an already-loaded `products` map). The list stores no product data of its own. For **anonymous** public viewers (no account), read the `publicLists/{token}` snapshot instead — see below.
 
 ### `users/{uid}/scales/{mac}` — TigerScale heartbeats
 
