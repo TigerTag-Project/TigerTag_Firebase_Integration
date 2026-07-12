@@ -96,8 +96,10 @@ doesn't have to be online or act. A Cloud Function
 (`autoAcceptFriendRequestForPublic`) triggers on creation of
 `users/{ownerId}/friendRequests/{requesterId}`, and when the owner is public it
 writes both `friends/{…}` entries and deletes the request (exactly the batch
-above, via the Admin SDK), then posts a `friend_accepted` notification to the
-requester. So against a public account a "request" behaves like an instant
+above, via the Admin SDK), then notifies **both** sides: a `friend_accepted`
+notification to the requester and a `friend_added` notification to the owner
+(so a public account still learns who just connected, since there was no accept
+step). So against a public account a "request" behaves like an instant
 follow: expect the pending request to disappear within a second or two and the
 bidirectional friendship to appear. For non-public accounts nothing changes —
 the request stays pending until the owner accepts/refuses/blocks it.
