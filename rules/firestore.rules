@@ -74,7 +74,7 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.keys().hasOnly([
              "ownerUid", "ownerName", "ownerCode", "listId",
-             "name", "emoji", "occasion", "message", "items", "updatedAt"
+             "name", "emoji", "occasion", "message", "items", "updatedAt", "ownerSocials"
            ]);
       // Update: the EXISTING doc must already belong to the caller (an unguessable
       // token can't be hijacked), and ownership can't be reassigned.
@@ -83,7 +83,7 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.keys().hasOnly([
              "ownerUid", "ownerName", "ownerCode", "listId",
-             "name", "emoji", "occasion", "message", "items", "updatedAt"
+             "name", "emoji", "occasion", "message", "items", "updatedAt", "ownerSocials"
            ]);
       allow delete: if request.auth != null
         && resource.data.ownerUid == request.auth.uid;

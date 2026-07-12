@@ -106,6 +106,8 @@ Public-facing identity card. Anyone signed in can read this; only the owner can 
 | `color` | string \| null | ⚠️ | Hex avatar colour, e.g. `#FF7A18`. Used as the background of the colour-circle fallback avatar when `photoURL` is null |
 | `color_r` / `color_g` / `color_b` | number | ⚠️ | Alternate RGB-component form (some clients write one, some the other; always check both) |
 | `photoURL` | string \| null | ⚠️ | Cloud Storage download URL of the user's custom avatar. Set when the user uploaded a picture, null otherwise. Points at `gs://{bucket}/avatars/{uid}` — see [Custom avatars](#custom-avatars-storage) below. Clients render `<img src="${photoURL}">` when present, fall back to the `color` circle with initials when null. |
+| `friendsCount` | number |  | Denormalised count of the user's accepted friends (bidirectional, so also = the number of people who have this account as a friend). Owner-written; used as a "X friends / followers" badge on profiles. |
+| `socials` | string[] |  | Ordered list of the user's social-profile URLs (e.g. `["https://x.com/…","https://instagram.com/…"]`). Owner-written. Infer the platform icon from each URL's host (X, Instagram, YouTube, TikTok, Facebook, LinkedIn, Twitch, Discord, GitHub, WhatsApp) with a generic globe fallback. Render as external links (`rel="noopener noreferrer"`). |
 
 **Example doc** — `userProfiles/alice123abcDEF`:
 
@@ -146,6 +148,7 @@ A denormalised, **world-readable** snapshot of a `users/{uid}/lists/{listId}` it
 | `name` / `emoji` / `occasion` | string | List display fields |
 | `message` | string | Optional owner message to viewers (from the list's `message`) — safe to display. |
 | `items` | array | `[{ keyHash, brand, material, colorName, colorHex, imgUrl, priceHt, buyUrl }]` — display order preserved. **No personal `note`, no uid-scoped data.** |
+| `ownerSocials` | string[] | Owner's social-profile URLs (copied from `userProfiles.socials`) — render as brand-icon links on the public page. |
 | `updatedAt` | timestamp | Last snapshot write |
 
 > ⚠️ This is the deliberate exception to "everything is gated": public list snapshots are world-readable by design. They carry only safe display fields — never the owner's `note` or any private data. Render `items` as-is; do not try to read `users/{uid}/products` from an unauthenticated context (that collection is not world-readable).
