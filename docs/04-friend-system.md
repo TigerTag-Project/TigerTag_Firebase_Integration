@@ -89,6 +89,19 @@ Translation: "Bob (auth.uid) can write into Alice's friends list IF Alice
 has a pending friend request from Bob." Without that pending request, Bob
 can't self-add to anyone.
 
+### 4b. Auto-accept for public accounts (server-side)
+If the recipient's profile is **public** (`userProfiles/{uid}.isPublic == true`),
+the request is **accepted automatically and instantly, server-side** — the owner
+doesn't have to be online or act. A Cloud Function
+(`autoAcceptFriendRequestForPublic`) triggers on creation of
+`users/{ownerId}/friendRequests/{requesterId}`, and when the owner is public it
+writes both `friends/{…}` entries and deletes the request (exactly the batch
+above, via the Admin SDK), then posts a `friend_accepted` notification to the
+requester. So against a public account a "request" behaves like an instant
+follow: expect the pending request to disappear within a second or two and the
+bidirectional friendship to appear. For non-public accounts nothing changes —
+the request stays pending until the owner accepts/refuses/blocks it.
+
 ### 5. Read access
 Alice now wants to read Bob's spools:
 ```
