@@ -23,6 +23,16 @@ cycles in the wild.
 
 ## [Unreleased]
 
+### Changed
+- **`publicKeys/{code}` and `userProfiles/{uid}` are now WORLD-readable (`allow read: if true`).**
+  Previously signed-in-only. The friend-invite landing page must show the inviter's
+  displayName + avatar to a **logged-out** visitor: it resolves `publicKeys/{code}` → `uid`,
+  then reads `userProfiles/{uid}` — both without auth. Safe because `userProfiles` holds only
+  shareable profile data (displayName, photoURL, publicKey, isPublic, friendsCount, socials) —
+  never privateKey / email / inventory (owner-only `users/{uid}`) — and a uid is not
+  enumerable. Writes stay owner-only. Updated `rules/firestore.rules`, `docs/03-data-model.md`
+  (read-access table + flat-collections note) and `docs/04-friend-system.md`.
+
 ### Added
 - **`users/{uid}/lists/{listId}` — shareable wishlists.** New per-user collection
   (Firestore auto-id) mirroring `products`: `{ name, emoji?, occasion?, message?,

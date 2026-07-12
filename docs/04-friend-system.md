@@ -43,7 +43,9 @@ Alice wants to add Bob. Bob shares his `publicKey` ("4X7-K3M").
 
 ### 2. Lookup
 Alice's client reads `publicKeys/4X7-K3M` → gets `{ uid: "bob_uid" }`.
-This collection is signed-in readable — anyone can resolve a code.
+This collection is **world-readable (no auth)** — anyone can resolve a code, so the
+friend-invite landing page can show the inviter's name + avatar to a logged-out visitor
+(then it reads the public `userProfiles/{uid}`, also world-readable, for those fields).
 
 ### 3. Friend request
 Alice writes:

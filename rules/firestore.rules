@@ -41,7 +41,11 @@ service cloud.firestore {
     // ║ Does NOT contain : privateKey, email, inventory              ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /userProfiles/{uid} {
-      allow read:  if request.auth != null;
+      // WORLD-readable (no auth): the friend-invite landing page shows the inviter's
+      // displayName + avatar to a logged-out visitor. Holds only shareable profile data
+      // (displayName, photoURL, publicKey, isPublic, friendsCount, socials) — never
+      // privateKey / email / inventory. A uid is not enumerable.
+      allow read:  if true;
       allow write: if request.auth != null && request.auth.uid == uid;
     }
 
@@ -50,8 +54,10 @@ service cloud.firestore {
     // ║ O(1) lookup by doc id — guarantees XXX-XXX code uniqueness   ║
     // ╚══════════════════════════════════════════════════════════════╝
     match /publicKeys/{key} {
-      // Any signed-in user can resolve a code (used in friend lookup flow)
-      allow read: if request.auth != null;
+      // WORLD-readable (no auth): the friend-invite landing page resolves the invite
+      // <code> → uid before the visitor signs in, then reads userProfiles/{uid} for the
+      // inviter's name + avatar. Holds only { uid } — no sensitive data.
+      allow read: if true;
       // Only the owner can claim / release their own code
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid;

@@ -12,8 +12,8 @@ Everything lives under exactly three root collections. Knowing what each one is 
 
 | Collection | Who can read | Who can write | Role |
 |---|---|---|---|
-| **`publicKeys/{XXX-XXX}`** | Any signed-in user | Owner only (atomic claim) | Tiny lookup table mapping a discovery code → uid |
-| **`userProfiles/{uid}`** | Any signed-in user | Owner only | Public-facing "business card" (pseudo, avatar colour, isPublic flag) |
+| **`publicKeys/{XXX-XXX}`** | Anyone (public, no auth) | Owner only (atomic claim) | Tiny lookup table mapping a discovery code → uid |
+| **`userProfiles/{uid}`** | Anyone (public, no auth) | Owner only | Public-facing "business card" (pseudo, avatar, isPublic, publicKey, friendsCount, socials) |
 | **`users/{uid}`** | Owner only at root level; some sub-collections opened to friends | Owner only | Private vault — inventory, racks, scales, friends, etc. |
 
 ```
@@ -41,7 +41,7 @@ Everything lives under exactly three root collections. Knowing what each one is 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The two flat collections (`publicKeys`, `userProfiles`) exist so a stranger can find a user without already having read access to that user's private data — the `users/{uid}` doc itself is locked down.
+The two flat collections (`publicKeys`, `userProfiles`) exist so a stranger can find a user without already having read access to that user's private data — the `users/{uid}` doc itself is locked down. **Both are world-readable (no auth):** the friend-invite landing page must show the inviter's name + avatar to a logged-out visitor (resolve `publicKeys/{code}` → uid → read `userProfiles/{uid}`), then invite them to sign in. This is safe because `userProfiles` carries only shareable profile data — never privateKey / email / inventory, which live in the owner-only `users/{uid}` — and a uid is not enumerable (a reader needs a shared invite code to reach a profile).
 
 ---
 
