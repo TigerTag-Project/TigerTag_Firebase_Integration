@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Pre-commit guard for the PUBLIC integration repo.
+# Blocks any commit that would leak a secret into this public surface.
+# Enable once with:  git config core.hooksPath .githooks
+set -euo pipefail
+DIR="$(git rev-parse --show-toplevel)"
+bash "$DIR/scripts/secret-scan.sh"
