@@ -521,7 +521,8 @@ Bidirectional: when Alice accepts Bob's request, two docs are written atomically
 |---|---|---|---|
 | `displayName` | string | ✅ | Friend's pseudo (denormalised from their `userProfiles`) |
 | `addedAt` | timestamp | ✅ | When the friendship was accepted |
-| `key` | string | ✅ | The **owner's own** privateKey at time of acceptance — used by Firestore Rules as a friendship capability token. |
+| `key` | string |  | The **owner's own** privateKey at time of acceptance — used by Firestore Rules as a friendship capability token. |
+| `sortRank` | number |  | User-defined display order (drag-to-reorder in the apps). Owner-written; absent = fall back to `addedAt`. Honour it when listing friends so the order stays consistent across apps. |
 
 **Example doc** — `users/alice123abcDEF/friends/bob456ghiJKL`:
 
