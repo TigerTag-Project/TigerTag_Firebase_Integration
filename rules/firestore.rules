@@ -265,7 +265,7 @@ service cloud.firestore {
           );
         allow delete: if isOwner();
         allow create, update: if isOwner()
-          && request.resource.data.keys().hasOnly(["name", "emoji", "occasion", "message", "visibility", "itemKeys", "createdAt", "updatedAt", "sortRank", "publicToken"]);
+          && request.resource.data.keys().hasOnly(["name", "emoji", "occasion", "message", "visibility", "itemKeys", "itemQty", "createdAt", "updatedAt", "sortRank", "publicToken"]);
       }
 
       // ── Scales (TigerScale heartbeats) ────────────────────────────

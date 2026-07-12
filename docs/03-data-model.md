@@ -147,7 +147,7 @@ A denormalised, **world-readable** snapshot of a `users/{uid}/lists/{listId}` it
 | `listId` | string | Back-reference to `users/{ownerUid}/lists/{listId}` |
 | `name` / `emoji` / `occasion` | string | List display fields |
 | `message` | string | Optional owner message to viewers (from the list's `message`) — safe to display. |
-| `items` | array | `[{ keyHash, brand, material, colorName, colorHex, imgUrl, priceHt, buyUrl }]` — display order preserved. **No personal `note`, no uid-scoped data.** |
+| `items` | array | `[{ keyHash, brand, material, colorName, colorHex, imgUrl, priceHt, buyUrl, qty }]` — display order preserved; `qty` = per-item quantity (default 1). **No personal `note`, no uid-scoped data.** |
 | `ownerSocials` | string[] | Owner's social-profile URLs (copied from `userProfiles.socials`) — render as brand-icon links on the public page. |
 | `updatedAt` | timestamp | Last snapshot write |
 
@@ -486,6 +486,7 @@ A Tiger Studio Manager feature. **One document per named list** (Firestore auto-
 | `message` | string | Optional free-text note from the owner to whoever views the list (≤ 500 chars). Shown to friends + on the public page. |
 | `visibility` | string | `"private"` \| `"friends"` \| `"public"` — see the read table above (absent = `"friends"`) |
 | `itemKeys` | string[] | `products` `keyHash`es; **array order = display order** |
+| `itemQty` | map | Optional `{ keyHash: number }` — per-item quantity (Amazon-cart style), default 1 when absent |
 | `sortRank` | number | Order of the list among the user's lists |
 | `publicToken` | string | Present only when `visibility == "public"` — the id of the world-readable [`publicLists/{token}`](#publicliststoken--public-list-snapshots) snapshot for this list |
 | `createdAt` / `updatedAt` | timestamp | Lifecycle |

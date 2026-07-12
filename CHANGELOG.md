@@ -34,6 +34,11 @@ cycles in the wild.
   (read-access table + flat-collections note) and `docs/04-friend-system.md`.
 
 ### Added
+- **`users/{uid}/lists/{listId}.itemQty` — per-item quantities.** New optional map
+  `{ keyHash: number }` on a list (Amazon-cart style, default 1 when a key is absent),
+  added to the `lists` `hasOnly([...])` whitelist. Mirrored into the public snapshot as
+  `publicLists/{token}.items[].qty`. Documented in `rules/firestore.rules` +
+  `docs/03-data-model.md`.
 - **`users/{uid}/lists/{listId}` — shareable wishlists.** New per-user collection
   (Firestore auto-id) mirroring `products`: `{ name, emoji?, occasion?, message?,
   itemKeys[], visibility, publicToken?, sortRank, createdAt, updatedAt }`. A list
