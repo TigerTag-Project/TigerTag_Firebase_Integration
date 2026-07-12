@@ -489,6 +489,8 @@ A Tiger Studio Manager feature. **One document per named list** (Firestore auto-
 
 > To resolve a list for display, read `itemKeys` then fetch each `users/{uid}/products/{keyHash}` (or reuse an already-loaded `products` map). The list stores no product data of its own. For **anonymous** public viewers (no account), read the `publicLists/{token}` snapshot instead — see below.
 
+> ⚠️ **Listing another user's lists (as a friend): you MUST filter the query.** Rules are not filters — an unconstrained `collection("lists")` read from a non-owner is **rejected** (it could return a `private` list). Query `where("visibility", "!=", "private")` so Firestore can prove every returned doc is readable. (A `!=` query excludes docs with no `visibility` field; all current lists set it.)
+
 ### `users/{uid}/scales/{mac}` — TigerScale heartbeats
 
 The doc id is the ESP32's WiFi MAC address (lowercase hex, no separators, e.g. `8c4f0023a1bc`).
