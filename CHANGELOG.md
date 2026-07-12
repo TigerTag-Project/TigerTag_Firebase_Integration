@@ -24,6 +24,37 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`users/{uid}/lists/{listId}` — shareable wishlists.** New per-user collection
+  (Firestore auto-id) mirroring `products`: `{ name, emoji?, occasion?, message?,
+  itemKeys[], visibility, publicToken?, sortRank, createdAt, updatedAt }`. A list
+  stores only product-identity `keyHash`es (resolved live from `products`), never a
+  copy. **`visibility`** = `"private"` (owner-only) / `"friends"` (default — accepted
+  friends) / `"public"` (any signed-in user). Read policy honours it; write is owner
+  only with a `hasOnly([...])` whitelist. Documented in `rules/firestore.rules` +
+  `docs/03-data-model.md`.
+  - ⚠️ **Listing a friend's lists MUST be constrained** — a bare
+    `collection(users/{uid}/lists)` query from a non-owner is rejected by the rules.
+    Use `where("visibility","!=","private")`.
+- **`publicLists/{token}` — world-readable wishlist snapshot.** New top-level
+  collection (unguessable token id), `allow read: if true` (no auth — powers the
+  public web page), owner create/update with a field whitelist. Denormalised snapshot:
+  `{ ownerUid, ownerName, ownerCode, listId, name, emoji, occasion, message, items[],
+  ownerSocials[], updatedAt }`. Kept in sync by the owner client while the list is
+  public. Documented in `rules/firestore.rules` + `docs/03-data-model.md`.
+- **`userProfiles/{uid}.friendsCount`** — public friend/follower count (social proof).
+  Bidirectional friendship ⇒ equals "people who friended this account". Written by the
+  owner's client when their friends list changes, **and recounted + written server-side
+  by the `autoAcceptFriendRequestForPublic` Cloud Function** for public accounts (the
+  owner is offline during an auto-accept, so its client can't). Clients READ it, never
+  recompute. Documented in `docs/03-data-model.md` + `docs/04-friend-system.md` §4b.
+- **`userProfiles/{uid}.socials`** (and its mirror on `users/{uid}.socials`) — ordered
+  list of the user's social-profile URLs. Icon is inferred from the URL host client-side
+  (no fixed platform enum), generic fallback otherwise. Also copied into
+  `publicLists/{token}.ownerSocials` for the public page. `userProfiles` is owner-write /
+  auth-read, so no rules change was needed. Documented in `docs/03-data-model.md`.
+- **`users/{uid}/friends/{uid}.sortRank`** — optional client-defined ordering for the
+  friends list (drag-reorder). Owner-write, opaque to third parties. Documented in
+  `docs/03-data-model.md` + `docs/04-friend-system.md`.
 - **`users/{uid}/products/{keyHash}` — now friend-readable.** Documented the
   Tiger Studio "Products & Favorites" collection (one doc per product IDENTITY,
   doc id = `keyHash`) in `rules/firestore.rules` (TARGET form, `list` capped at
