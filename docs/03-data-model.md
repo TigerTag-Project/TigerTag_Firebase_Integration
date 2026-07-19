@@ -923,6 +923,46 @@ If the secrets never enter your client's address space, they can't leak.
 
 ---
 
+## ⚠️ URL fields are attacker-controlled — validate the scheme before you render
+
+Several fields hold a URL that a **user typed into their own document**, and those documents are
+readable by other people. Treat every one of them as hostile input:
+
+| Field | Lives on | Who can read it |
+|---|---|---|
+| `buyUrl` | `users/{uid}/products/{keyHash}` | owner, accepted friends, anyone when `isPublic` |
+| `attachments[].url` | `users/{uid}/products/{keyHash}` | same |
+| `LinkMSDS`, `LinkYoutube`, `LinkTuto`, … | `users/{uid}/inventory/{spoolId}` | same |
+| `url_img` / custom product image | `users/{uid}/inventory/{spoolId}`, `products` | same |
+| `items[].buyUrl` | `publicLists/{token}` | **unauthenticated — the whole internet** |
+
+**The security rules cannot help you here.** A field whitelist controls *which* fields may be
+written, never what a string contains. The owner writes these with a perfectly legitimate
+credential, so `javascript:alert(document.cookie)` is stored exactly like any other string — and any
+sanitiser in a client is bypassed by writing to Firestore directly.
+
+**So the check belongs in your renderer**, on every field above:
+
+```js
+// Fail closed: prove it is http(s), don't enumerate the schemes you dislike.
+function safeHref(u) {
+  try {
+    const p = new URL(String(u ?? "").trim()).protocol;
+    return (p === "http:" || p === "https:") ? String(u).trim() : null;
+  } catch { return null; }
+}
+```
+
+**HTML-escaping is not this check.** Escaping stops tag injection; it leaves `javascript:` inside an
+`href` completely intact. If your client also hands URLs to an OS (`shell.openExternal`,
+`launchUrl`, `Intent.ACTION_VIEW`), guard there too — a non-http scheme can reach a local handler.
+If you follow redirects server-side, re-validate each hop and reject private, loopback and
+link-local destinations, or the fetch becomes a request-forgery primitive.
+
+This is not hypothetical: it was found and fixed across the TigerTag clients in July 2026.
+
+---
+
 ## Common reads
 
 ### List own spools
