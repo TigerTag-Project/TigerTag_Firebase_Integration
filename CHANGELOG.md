@@ -23,6 +23,14 @@ cycles in the wild.
 
 ## [Unreleased]
 
+### Added
+- **`users/{uid}/inventory/{uid}.tag_index` / `.tag_count` — chip i of n (TigerTag protocol v2.2).**
+  Unpacked from chip byte +39 (high nibble = index from 1, low nibble = count; `0x11` single,
+  `0x12` / `0x22` twin, `0x00` unknown on chips written before v2.2). Written by Studio on every
+  scan and on a guided burn. `tag_index` is per chip and must never be mirrored to the twin;
+  `tag_count` is shared. No rules change (inventory is owner-write). Documented in
+  `docs/03-data-model.md` (Identity table + example + chip-identity note).
+
 ### Changed
 - **`publicKeys/{code}` and `userProfiles/{uid}` are now WORLD-readable (`allow read: if true`).**
   Previously signed-in-only. The friend-invite landing page must show the inviter's

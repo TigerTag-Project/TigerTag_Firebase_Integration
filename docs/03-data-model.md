@@ -206,6 +206,8 @@ The schema is intentionally generous — many fields are optional, only filled w
 | `id_tigertag` | number | optional | TigerTag chip identifier (per-tag value written at encoding time) |
 | `id_product` | number | optional | TigerTag+ product registry id — used to fetch online artwork (`url_img`) and metadata from the CDN |
 | `timestamp` | number | optional | RFID chip's own encoding-time clock value (set by the TigerTag encoder, not Unix ms — opaque) |
+| `tag_index` | number | optional | Which chip of the object this is, **from 1** — chip byte +39 high nibble (TigerTag protocol v2.2). `0` = unknown (chip written before v2.2). Per chip: **never mirror it to the twin**. |
+| `tag_count` | number | optional | How many chips the object carries — byte +39 low nibble: `1` single, `2` twin, `0` unknown. A `tag_count` of 2 with no `twin_tag_uid` means the other chip has not been scanned yet. Same value on both twins. |
 
 #### Brand / model foreign keys
 
@@ -348,6 +350,8 @@ users/alice/inventory/1D138AF60D1080
   "id_tigertag":       3155151767,
   "id_product":        3203148594,
   "timestamp":         810157825,
+  "tag_index":         1,
+  "tag_count":         2,
 
   "id_brand":          19961,
   "id_material":       38219,
@@ -410,6 +414,8 @@ users/alice/inventory/1D138AF60D1080
 This example is a **TigerTag+** spool (note the `url_img` populated, `id_product` non-zero, full `LinkXXX` set, `info1: true` for "refill" because Rosa3D Masterspools are designed to be refilled). A bare **TigerTag** spool would have many of these fields as `"--"` / `0` / absent.
 
 > **Reading hint** — twin tags share the same physical spool, so when a scale or manual edit updates `weight_available`, BOTH docs (the primary and the one referenced by `twin_tag_uid`) must be patched in a single batch with identical values. See [tigerscale.md §6](./clients/tigerscale.md).
+
+> **Chip identity is per doc** — `uid`, `twin_tag_uid` and `tag_index` describe ONE physical chip and are never copied onto the twin (the partner of `tag_index: 1` is `tag_index: 2`). Everything else about the spool is shared.
 
 ### `users/{uid}/racks/{rackId}` — storage shelves
 
