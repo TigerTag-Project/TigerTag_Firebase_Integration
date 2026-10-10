@@ -24,6 +24,8 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`userProfiles/{uid}.tigerSquad.certified`** — the member's count of genuine TigerTag+ (server-
+  verified with the TigerTag SDK, one account per chip, uncapped); `silver` / `platinum` now granted.
 - **`userProfiles/{uid}.tigerSquad.tier`** — the member's level (`bronze` | `silver` | `gold` |
   `platinum`). The TigerSquad is now open to everyone who chooses to join: `bronze` for free,
   `gold` for those who backed the project. Server-written like the rest of `tigerSquad`.
