@@ -24,6 +24,8 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`userProfiles/{uid}.tigerSquad.xp`** — XP points from the member's chips (certified TigerTag+ 10,
+  TigerTag+ 2, TigerTag 1, per physical chip; server-counted, one account per chip).
 - **`userProfiles/{uid}.tigerSquad.certified`** — the member's count of genuine TigerTag+ (server-
   verified with the TigerTag SDK, one account per chip, uncapped); `silver` / `platinum` now granted.
 - **`userProfiles/{uid}.tigerSquad.tier`** — the member's level (`bronze` | `silver` | `gold` |
