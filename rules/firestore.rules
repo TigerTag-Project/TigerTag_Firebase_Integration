@@ -43,10 +43,15 @@ service cloud.firestore {
     match /userProfiles/{uid} {
       // WORLD-readable (no auth): the friend-invite landing page shows the inviter's
       // displayName + avatar to a logged-out visitor. Holds only shareable profile data
-      // (displayName, photoURL, publicKey, isPublic, friendsCount, socials) — never
-      // privateKey / email / inventory. A uid is not enumerable.
+      // (displayName, photoURL, publicKey, isPublic, friendsCount, socials, tigerSquad) —
+      // never privateKey / email / inventory. A uid is not enumerable. `tigerSquad`
+      // (TigerSquad membership) is SERVER-ONLY — no client may set it.
       allow read:  if true;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['tigerSquad']);
+      allow update: if request.auth != null && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tigerSquad']);
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
 
     // ╔══════════════════════════════════════════════════════════════╗

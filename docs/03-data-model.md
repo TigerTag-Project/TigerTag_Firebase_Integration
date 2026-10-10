@@ -13,7 +13,7 @@ Everything lives under exactly three root collections. Knowing what each one is 
 | Collection | Who can read | Who can write | Role |
 |---|---|---|---|
 | **`publicKeys/{XXX-XXX}`** | Anyone (public, no auth) | Owner only (atomic claim) | Tiny lookup table mapping a discovery code → uid |
-| **`userProfiles/{uid}`** | Anyone (public, no auth) | Owner only | Public-facing "business card" (pseudo, avatar, isPublic, publicKey, friendsCount, socials) |
+| **`userProfiles/{uid}`** | Anyone (public, no auth) | Owner only | Public-facing "business card" (pseudo, avatar, isPublic, publicKey, friendsCount, socials, tigerSquad) |
 | **`users/{uid}`** | Owner only at root level; some sub-collections opened to friends | Owner only | Private vault — inventory, racks, scales, friends, etc. |
 
 ```
@@ -108,6 +108,7 @@ Public-facing identity card. Anyone signed in can read this; only the owner can 
 | `photoURL` | string \| null | ⚠️ | Cloud Storage download URL of the user's custom avatar. Set when the user uploaded a picture, null otherwise. Points at `gs://{bucket}/avatars/{uid}` — see [Custom avatars](#custom-avatars-storage) below. Clients render `<img src="${photoURL}">` when present, fall back to the `color` circle with initials when null. |
 | `friendsCount` | number |  | Denormalised count of the user's accepted friends (bidirectional, so also = the number of people who have this account as a friend). Written by the owner's client when their friends list changes, **and by the `autoAcceptFriendRequestForPublic` Cloud Function** (exact `count()` recount) whenever a public account is auto-friended while offline. Used as a "X friends / followers" badge on profiles. |
 | `socials` | string[] |  | Ordered list of the user's social-profile URLs (e.g. `["https://x.com/…","https://instagram.com/…"]`). Owner-written. Infer the platform icon from each URL's host (X, Instagram, YouTube, TikTok, Facebook, LinkedIn, Twitch, Discord, GitHub, WhatsApp) with a generic globe fallback. Render as external links (`rel="noopener noreferrer"`). |
+| `tigerSquad` | map? |  | **TigerSquad membership** — `{ since: timestamp }`, present only for an account that backed the project AND chose to join the public supporters' group. **Server-written only** (the payment webhooks' `publishSupporter` Cloud Function); clients cannot set it (`firestore.rules`). Removed when the member leaves. Render a supporter badge (golden ring / "TigerSquad" pill); query `where('tigerSquad.since', '!=', null)` for a wall of fame. Never carries an amount. |
 
 **Example doc** — `userProfiles/alice123abcDEF`:
 

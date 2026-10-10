@@ -24,6 +24,11 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`userProfiles/{uid}.tigerSquad` — TigerSquad membership (`{ since }`).** The public group of
+  supporters: set by a Cloud Function only for an account that backed the project and chose to
+  join; clients can neither create nor change it (rules updated). Readable like the rest of the
+  profile — badge a member, or list `where('tigerSquad.since', '!=', null)` for a wall of fame.
+  No amount is ever published.
 - **`users/{uid}/inventory/{uid}.tag_index` / `.tag_count` — chip i of n (TigerTag protocol v2.2).**
   Unpacked from chip byte +39 (high nibble = index from 1, low nibble = count; `0x11` single,
   `0x12` / `0x22` twin, `0x00` unknown on chips written before v2.2). Written by Studio on every
