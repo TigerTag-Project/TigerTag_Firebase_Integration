@@ -24,6 +24,9 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`userProfiles/{uid}.tigerSquad.tier`** — the member's level (`bronze` | `silver` | `gold` |
+  `platinum`). The TigerSquad is now open to everyone who chooses to join: `bronze` for free,
+  `gold` for those who backed the project. Server-written like the rest of `tigerSquad`.
 - **`userProfiles/{uid}.tigerSquad` — TigerSquad membership (`{ since }`).** The public group of
   supporters: set by a Cloud Function only for an account that backed the project and chose to
   join; clients can neither create nor change it (rules updated). Readable like the rest of the
