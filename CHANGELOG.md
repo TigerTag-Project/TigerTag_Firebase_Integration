@@ -24,6 +24,10 @@ cycles in the wild.
 ## [Unreleased]
 
 ### Added
+- **`publicStats/community`** — world-readable community totals, refreshed every minute by the
+  backend: `xpTotal` (every account), `accounts`, `members { count, xp }`, `anonymous { count, xp }`
+  (everyone outside the TigerSquad, as one group), `spools { total, tigerTag, tigerTagPlus,
+  tigerTagPlusCertified, tigerData, tigerDataPlus }`, `updatedAt`. Sums only; read-only.
 - **`userProfiles/{uid}.tigerSquad.xp`** — XP points from the member's chips (certified TigerTag+ 10,
   TigerTag+ 2, TigerTag 1, per physical chip; server-counted, one account per chip).
 - **`userProfiles/{uid}.tigerSquad.certified`** — the member's count of genuine TigerTag+ (server-

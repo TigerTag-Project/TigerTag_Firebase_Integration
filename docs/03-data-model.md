@@ -15,6 +15,7 @@ Everything lives under exactly three root collections. Knowing what each one is 
 | **`publicKeys/{XXX-XXX}`** | Anyone (public, no auth) | Owner only (atomic claim) | Tiny lookup table mapping a discovery code → uid |
 | **`userProfiles/{uid}`** | Anyone (public, no auth) | Owner only | Public-facing "business card" (pseudo, avatar, isPublic, publicKey, friendsCount, socials, tigerSquad) |
 | **`users/{uid}`** | Owner only at root level; some sub-collections opened to friends | Owner only | Private vault — inventory, racks, scales, friends, etc. |
+| **`publicStats/community`** | Anyone (public, no auth) | Backend only | Community totals — XP of every account, spools by kind, members vs. one anonymous group ([details](#publicstatscommunity--community-totals)) |
 
 ```
 ┌─────────────────────────┐
@@ -153,6 +154,28 @@ A denormalised, **world-readable** snapshot of a `users/{uid}/lists/{listId}` it
 | `updatedAt` | timestamp | Last snapshot write |
 
 > ⚠️ This is the deliberate exception to "everything is gated": public list snapshots are world-readable by design. They carry only safe display fields — never the owner's `note` or any private data. Render `items` as-is; do not try to read `users/{uid}/products` from an unauthenticated context (that collection is not world-readable).
+
+### `publicStats/community` — community totals
+
+A single **world-readable** document (`read: if true`, no auth) with the TigerTag community at a glance. It is written **only by the backend** (the `communityStats` function, every minute) and holds **sums only** — nothing in it identifies anyone. Accounts that did not join the TigerSquad appear only inside the `anonymous` group totals.
+
+**Write: none from clients.**
+
+| Field | Type | Description |
+|---|---|---|
+| `xpTotal` | number | XP of every account, TigerSquad member or not |
+| `accounts` | number | Number of accounts |
+| `members` | map | `{ count, xp }` — TigerSquad members (their published XP) |
+| `anonymous` | map | `{ count, xp }` — every other account, as one group |
+| `spools` | map | `{ total, tigerTag, tigerTagPlus, tigerTagPlusCertified, tigerData, tigerDataPlus }` — spools tracked across all inventories. `tigerTagPlusCertified` counts chips (a twin certified spool counts 2) and is shown apart from `tigerTagPlus`, never twice. |
+| `updatedAt` | timestamp | Last time a number moved |
+
+```bash
+# No auth needed — the API key is the public one from init.json
+curl -s "https://firestore.googleapis.com/v1/projects/tigertag-connect/databases/(default)/documents/publicStats/community?key=<apiKey>"
+```
+
+> Poll it (e.g. every 20–60 s) rather than listening in a tight loop: it changes at most once a minute.
 
 ### `users/{uid}` (root document)
 

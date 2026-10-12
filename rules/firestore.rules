@@ -79,6 +79,13 @@ service cloud.firestore {
     // publicKey (`ownerCode`, for the "sign in to follow" CTA); it never
     // contains the personal `note` or uid-scoped data. Write: owner only,
     // verified via `ownerUid == auth.uid` + a strict field whitelist.
+    // Community totals (sums only, nothing personal) — written every minute by
+    // the backend's communityStats function; world-readable, no client writes.
+    match /publicStats/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /publicLists/{token} {
       allow read: if true;
       allow create: if request.auth != null
