@@ -244,4 +244,4 @@ The **TigerTag protocol** is CC-BY-4.0 with an irrevocable, royalty-free right t
 see [TigerTag-RFID-Guide](https://github.com/TigerTag-Project/TigerTag-RFID-Guide).
 
 The TigerTag service itself (the Firebase project, the API and the catalogue) is operated by
-TigerTag Corp and is not covered by these licences.
+TigerSystem and is not covered by these licences.
