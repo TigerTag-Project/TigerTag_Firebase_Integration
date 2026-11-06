@@ -1,0 +1,66 @@
+# TigerTag Firebase Integration Guide
+
+> Reference documentation and examples for third-party clients (Home Assistant, ESP32 firmware,
+> Python scripts, a Spoolman bridge, TigerScale-compatible scales) that connect to a user's
+> TigerTag account through Firebase Authentication and the Firestore REST API. What is
+> documented here is what is deployed; every change to the contract is recorded in CHANGELOG.md.
+
+Repository: https://github.com/TigerTag-Project/TigerTag_Firebase_Integration
+Site: https://tigertag-project.github.io/TigerTag_Firebase_Integration/
+Part of the TigerSystem ecosystem: https://tigersystem.io
+
+## How a client connects
+
+1. Fetch the public Firebase config: GET https://tigertag-cdn.web.app/__/firebase/init.json
+   (the apiKey is public by design; cache the response, a weekly refresh is enough).
+2. Sign in with the end user's own email and password:
+   POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={apiKey}
+   returns localId (UID), idToken (1-hour JWT) and refreshToken. Google Sign-In needs a browser.
+3. Call Firestore with Authorization: Bearer {idToken}. Spools: users/{uid}/inventory,
+   racks: users/{uid}/racks, friends: users/{uid}/friends.
+4. Refresh the idToken before it expires (POST https://securetoken.googleapis.com/v1/token)
+   and replace both stored tokens; on permission-denied, refresh once and retry once.
+
+## Principles
+
+- No service account: every client signs in with the end user's own credentials; never use
+  the firebase-admin SDK in a third-party client.
+- Firestore Security Rules enforce every permission server-side (public copy: rules/firestore.rules).
+- Friend access: while users/{friend}/friends/{you} exists, you may read that friend's inventory
+  and racks, read-only; deleting the document cuts access immediately.
+- Firebase App Check is not enforced.
+- Polling: 5 minutes minimum for sensors, never under 30 seconds; pass a limit on list reads
+  (200 for inventory, 50 for racks).
+
+## Stability
+
+- Stable without notice: document paths, documented field names and meanings
+  (weight_available = net grams, last_update = Unix milliseconds, deleted: true = soft-deleted),
+  the friend access model, the auth endpoints, apiKey and projectId.
+- Renaming or removing a field requires at least 3 months notice in the CHANGELOG.
+- May change: lookup table contents (ids are append-only), cdn.tigertag.io convenience endpoints,
+  new collections and fields (always additive).
+- Latest released contract version: 0.1.3 (2026-05-02).
+
+## Docs
+
+- [Firebase config](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/01-firebase-config.md)
+- [Authentication](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/02-authentication.md)
+- [Data model](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/03-data-model.md)
+- [Friend system](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/04-friend-system.md)
+- [Rate limiting](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/05-rate-limiting.md)
+- [Firestore Security Rules](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/rules/firestore.rules)
+- [Changelog](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/CHANGELOG.md)
+
+## Client guides
+
+- [Home Assistant](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/clients/home-assistant.md): one sensor per spool; config flow and sensor skeletons.
+- [ESP32 / Arduino](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/clients/esp32.md): find a spool by RFID UID, write weight_available and last_update; complete Arduino sketch.
+- [TigerScale contract](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/clients/tigerscale.md): heartbeat every 30 s to users/{uid}/scales/{mac}, weight updates, twin tags in one batch.
+- [Python CLI](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/clients/python-cli.md): minimal Pyrebase4 client.
+- [Spoolman bridge](https://github.com/TigerTag-Project/TigerTag_Firebase_Integration/blob/main/docs/clients/spoolman-bridge.md): one-way sync TigerTag to Spoolman.
+
+## Licences
+
+Documentation: CC-BY-4.0. Security Rules and code snippets: Apache-2.0, attribution waived for
+snippets pasted into your own project. The TigerTag name, logo and service are not covered.
