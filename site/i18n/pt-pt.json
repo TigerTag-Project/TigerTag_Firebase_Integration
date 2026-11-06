@@ -7,7 +7,7 @@
   "meta_description": "Referência para clientes Home Assistant, ESP32, Python e Spoolman que leem e atualizam as bobinas de filamento TigerTag através do Firebase Auth e Firestore.",
   "og_title": "Guia de integração Firebase do TigerTag",
   "og_description": "Inicie sessão com a conta TigerTag do próprio utilizador, leia as suas bobinas e atualize os pesos: a referência para clientes de terceiros, com exemplos.",
-  "og_alt": "Integração Firebase TigerTag: a referência para clientes Home Assistant, ESP32, Python e Spoolman",
+  "og_alt": "Tiger Studio Manager 2 num Mac, um TigerPOD Mini a ler uma bobina e a app Tiger NFC Connect",
   "nav_how": "Como se liga",
   "nav_integrations": "Integrações",
   "nav_security": "Segurança",
