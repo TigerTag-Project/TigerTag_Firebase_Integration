@@ -6,7 +6,7 @@
   "meta_title": "Интеграция TigerTag с Firebase: свой клиент",
   "meta_description": "Справочник для клиентов Home Assistant, ESP32, Python и Spoolman, которые читают и обновляют катушки филамента TigerTag через Firebase Auth и Firestore.",
   "og_title": "Руководство по интеграции TigerTag с Firebase",
-  "og_description": "Вход через собственный аккаунт TigerTag пользователя, чтение его катушек, обновление веса: справочник для сторонних клиентов с примерами.",
+  "og_description": "Вход через аккаунт TigerSystem пользователя, чтение его катушек, обновление веса: справочник для сторонних клиентов.",
   "og_alt": "Tiger Studio Manager 2 на Mac, TigerPOD Mini, читающий катушку, и приложение Tiger NFC Connect",
   "nav_how": "Как подключиться",
   "nav_integrations": "Интеграции",
