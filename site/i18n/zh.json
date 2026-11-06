@@ -7,7 +7,7 @@
   "meta_description": "面向 Home Assistant、ESP32、Python 和 Spoolman 客户端的参考文档，介绍如何通过 Firebase Auth 和 Firestore 读取并更新 TigerTag 线材卷。",
   "og_title": "TigerTag Firebase 集成指南",
   "og_description": "使用用户自己的 TigerTag 账户登录，读取其线材卷，更新重量：面向第三方客户端的参考文档，附带示例。",
-  "og_alt": "TigerTag Firebase 集成：Home Assistant、ESP32、Python 和 Spoolman 客户端参考文档",
+  "og_alt": "Mac 上的 Tiger Studio Manager 2、正在读取耗材的 TigerPOD Mini 和 Tiger NFC Connect 应用",
   "nav_how": "连接方式",
   "nav_integrations": "集成",
   "nav_security": "安全",

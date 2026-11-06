@@ -7,7 +7,7 @@
   "meta_description": "Referência para clientes Home Assistant, ESP32, Python e Spoolman que leem e atualizam carretéis de filamento TigerTag via Firebase Auth e Firestore.",
   "og_title": "Guia de integração TigerTag com Firebase",
   "og_description": "Faça login com a conta TigerTag do próprio usuário, leia os carretéis dele e atualize os pesos: a referência para clientes de terceiros, com exemplos.",
-  "og_alt": "Integração TigerTag Firebase: a referência para clientes Home Assistant, ESP32, Python e Spoolman",
+  "og_alt": "Tiger Studio Manager 2 em um Mac, um TigerPOD Mini lendo um carretel e o app Tiger NFC Connect",
   "nav_how": "Como funciona a conexão",
   "nav_integrations": "Integrações",
   "nav_security": "Segurança",

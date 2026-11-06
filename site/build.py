@@ -49,6 +49,10 @@ REPO_URL = "https://github.com/TigerTag-Project/TigerTag_Firebase_Integration"
 # The eleven languages of the TigerTag sites, in the same order. `pt` (Brazil)
 # and `pt-pt` (Portugal) are separate dictionaries on purpose.
 LANGS = ["en", "fr", "de", "es", "it", "zh", "pt", "pt-pt", "pl", "ru", "nl"]
+
+# The share picture: tigersystem.io draws this page's card in each language,
+# with the same renderer as its own pages, so the site keeps no picture of its own.
+SHARE_CARD = "https://tigersystem.io/{lang}/firebase-integration/opengraph-image"
 HTML_LANG = {"zh": "zh-Hans", "pt": "pt-BR", "pt-pt": "pt-PT"}
 OG_LOCALE = {"en": "en_US", "fr": "fr_FR", "de": "de_DE", "es": "es_ES", "it": "it_IT",
              "zh": "zh_CN", "pt": "pt_BR", "pt-pt": "pt_PT", "pl": "pl_PL", "ru": "ru_RU", "nl": "nl_NL"}
@@ -127,7 +131,7 @@ def jsonld_blocks(lang, words, site_url, url, date):
         {"@context": "https://schema.org", "@type": "TechArticle", "headline": words["meta_title"],
          "description": words["meta_description"],
          "about": "Connecting third-party clients to a TigerTag account through Firebase Authentication and Firestore",
-         "inLanguage": in_lang, "url": url, "image": site_url + "assets/og.jpg", "dateModified": date,
+         "inLanguage": in_lang, "url": url, "image": SHARE_CARD.format(lang=lang), "dateModified": date,
          "license": "https://creativecommons.org/licenses/by/4.0/",
          "isBasedOn": REPO_URL, "author": {"@id": ORG_ID}, "publisher": {"@id": ORG_ID}},
         {"@context": "https://schema.org", "@type": "FAQPage", "inLanguage": in_lang, "mainEntity": faq},
@@ -160,6 +164,7 @@ def render(template, lang, words, dicts, site_url, date):
 
     special = {
         "@lang": lang,
+        "@ogimage": SHARE_CARD.format(lang=lang),
         "@htmllang": HTML_LANG.get(lang, lang),
         "@oglocale": OG_LOCALE[lang],
         "@oglocalealt": "\n".join(f'<meta property="og:locale:alternate" content="{OG_LOCALE[l]}">' for l in LANGS if l != lang),
@@ -205,7 +210,6 @@ def build(out, site_url):
     # Logos (white on dark, contoured black on light), favicon and touch icon.
     for extra in sorted((HERE / "assets").glob("*")):
         shutil.copy2(extra, out / "assets" / extra.name)
-    shutil.copy2(HERE / "og.jpg", out / "assets" / "og.jpg")
     # The machine-readable description of the guide, at the site root too.
     shutil.copy2(REPO / "llms.txt", out / "llms.txt")
 

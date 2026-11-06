@@ -24,7 +24,6 @@ deploying it.
 | [`site.css`](site.css), [`site.js`](site.js) | The look (dark by default, light on request) and the theme / language buttons, the same as the TigerTag protocol site. Loaded with `?v=` and a hash of the file's content. |
 | [`seo_check.py`](seo_check.py) | Checks the built pages for search and answer engines (rule: [`.agents/rules/seo-geo.md`](../.agents/rules/seo-geo.md)). |
 | [`assets/`](assets/) | TigerTag logos (white on the dark theme, contoured black on the light one), favicon and touch icon, copied unmodified from the TigerTag brand kit. |
-| [`og.jpg`](og.jpg) | The picture shown when the site is shared (1200 × 630). |
 
 The build also publishes [`llms.txt`](../llms.txt) at the site root, a `sitemap.xml` with
 `<lastmod>` and a `robots.txt`.

@@ -7,7 +7,7 @@
   "meta_description": "Referenz für Home-Assistant-, ESP32-, Python- und Spoolman-Clients, die TigerTag-Filamentspulen über Firebase Auth und Firestore lesen und aktualisieren.",
   "og_title": "Leitfaden zur TigerTag Firebase-Integration",
   "og_description": "Mit dem eigenen TigerTag-Konto des Nutzers anmelden, seine Spulen lesen, Gewichte aktualisieren: die Referenz für Drittanbieter-Clients, mit Beispielen.",
-  "og_alt": "TigerTag Firebase-Integration: die Referenz für Home-Assistant-, ESP32-, Python- und Spoolman-Clients",
+  "og_alt": "Tiger Studio Manager 2 auf einem Mac, ein TigerPOD Mini, der eine Spule liest, und die App Tiger NFC Connect",
   "nav_how": "So funktioniert es",
   "nav_integrations": "Integrationen",
   "nav_security": "Sicherheit",
