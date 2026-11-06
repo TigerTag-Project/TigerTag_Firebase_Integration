@@ -6,7 +6,7 @@
   "meta_title": "TigerTag Firebase Integration: połącz własnego klienta",
   "meta_description": "Dokumentacja klientów Home Assistant, ESP32, Python i Spoolman, które odczytują i aktualizują szpule filamentu TigerTag przez Firebase Auth i Firestore.",
   "og_title": "Przewodnik po integracji TigerTag z Firebase",
-  "og_description": "Logowanie własnym kontem TigerTag użytkownika, odczyt jego szpul, aktualizacja wagi: dokumentacja dla klientów zewnętrznych, z przykładami.",
+  "og_description": "Logowanie kontem TigerSystem użytkownika, odczyt jego szpul, aktualizacja wagi: dokumentacja dla klientów zewnętrznych.",
   "og_alt": "Tiger Studio Manager 2 na Macu, TigerPOD Mini odczytujący szpulę i aplikacja Tiger NFC Connect",
   "nav_how": "Jak to się łączy",
   "nav_integrations": "Integracje",

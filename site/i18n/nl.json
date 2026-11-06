@@ -6,7 +6,7 @@
   "meta_title": "TigerTag Firebase-integratie: koppel je eigen client",
   "meta_description": "Referentie voor Home Assistant-, ESP32-, Python- en Spoolman-clients die TigerTag-filamentspoelen lezen en bijwerken via Firebase Auth en Firestore.",
   "og_title": "Handleiding voor de TigerTag Firebase-integratie",
-  "og_description": "Inloggen met het eigen TigerTag-account van de gebruiker, spoelen lezen, gewichten bijwerken: de referentie voor clients van derden, met voorbeelden.",
+  "og_description": "Inloggen met het TigerSystem-account van de gebruiker, spoelen lezen, gewichten bijwerken: de referentie voor derden.",
   "og_alt": "Tiger Studio Manager 2 op een Mac, een TigerPOD Mini die een spoel leest en de app Tiger NFC Connect",
   "nav_how": "Hoe het verbindt",
   "nav_integrations": "Integraties",
