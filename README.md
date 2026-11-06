@@ -1,5 +1,35 @@
 # TigerTag — Firebase Integration Guide
 
+<p align="center">
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/">
+    <img src="assets/site-button.svg" alt="Visit the integration guide" width="420">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/" hreflang="en">English</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/fr/" hreflang="fr">Français</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/de/" hreflang="de">Deutsch</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/es/" hreflang="es">Español</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/it/" hreflang="it">Italiano</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/zh/" hreflang="zh-Hans">中文</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/pt/" hreflang="pt-BR">Português (BR)</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/pt-pt/" hreflang="pt-PT">Português (PT)</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/pl/" hreflang="pl">Polski</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/ru/" hreflang="ru">Русский</a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://tigertag-project.github.io/TigerTag_Firebase_Integration/nl/" hreflang="nl">Nederlands</a>
+</p>
+
 > **🎯 Source of truth for any third-party integration.** If your client
 > talks to the TigerTag Firebase backend (Home Assistant, OctoPrint,
 > Spoolman bridge, ESP32 firmware, custom script), **this repo is the
@@ -43,6 +73,7 @@ means we shipped a regression. Please file an issue.
 │       └── python-cli.md          ← minimal Python REPL example
 ├── rules/
 │   └── firestore.rules            ← public copy of the deployed Security Rules
+├── site/                          ← the showcase site (GitHub Pages), see site/README.md
 └── examples/
     ├── home-assistant/            ← runnable HA custom component
     ├── esp32-arduino/             ← reference Arduino sketch
@@ -213,4 +244,4 @@ The **TigerTag protocol** is CC-BY-4.0 with an irrevocable, royalty-free right t
 see [TigerTag-RFID-Guide](https://github.com/TigerTag-Project/TigerTag-RFID-Guide).
 
 The TigerTag service itself (the Firebase project, the API and the catalogue) is operated by
-TigerTag Corp and is not covered by these licences.
+TigerSystem and is not covered by these licences.

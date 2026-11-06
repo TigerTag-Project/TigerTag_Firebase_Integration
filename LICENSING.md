@@ -47,8 +47,8 @@ notice. That is the only case where it matters.
   in the protocol repository. You may say your project is *"compatible with TigerTag"*. You may not
   put our logo on a product as a mark of authenticity without written authorization.
 - **The TigerTag service itself** — the Firebase project, the API and the catalogue are operated by
-  TigerTag Corp. This repository documents how to talk to them; it does not license them.
-- **The TigerTag+ signature.** Anyone may *verify* a signature offline. Only TigerTag Corp may
+  TigerSystem. This repository documents how to talk to them; it does not license them.
+- **The TigerTag+ signature.** Anyone may *verify* a signature offline. Only TigerSystem may
   *issue* one — we hold the private key.
 
 ---
